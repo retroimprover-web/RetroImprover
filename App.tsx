@@ -97,7 +97,12 @@ const AuthScreen = ({ onLogin }: { onLogin: (token: string, user: any) => void }
 
     useEffect(() => {
         // Проверяем доступность OAuth при загрузке
-        API.getOAuthStatus().then(setOAuthStatus).catch(() => setOAuthStatus({ google: false, facebook: false, apple: false }));
+        API.getOAuthStatus()
+            .then(setOAuthStatus)
+            .catch((err) => {
+                console.error('OAuth status check failed:', err);
+                setOAuthStatus({ google: false, facebook: false, apple: false });
+            });
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {

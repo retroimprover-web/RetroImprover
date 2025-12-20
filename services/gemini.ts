@@ -1,6 +1,13 @@
 // This file is now acting as the API Client for your Backend
 // Backend runs on localhost:3000 in development, or VITE_API_URL in production
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Убеждаемся, что URL заканчивается на /api
+const API_URL = API_BASE.endsWith('/api') ? API_BASE : `${API_BASE}/api`;
+
+// Логирование для отладки (только в development)
+if (import.meta.env.DEV) {
+  console.log('API URL:', API_URL);
+}
 
 interface AuthResponse {
   token: string;
@@ -24,23 +31,39 @@ interface ProjectResponse {
 // --- Auth Services ---
 
 export const loginUser = async (email: string, password: string): Promise<AuthResponse> => {
-  const res = await fetch(`${API_URL}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
-  if (!res.ok) throw new Error('Login failed');
-  return res.json();
+  try {
+    const res = await fetch(`${API_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ error: 'Login failed' }));
+      throw new Error(error.error || error.message || 'Login failed');
+    }
+    return res.json();
+  } catch (error: any) {
+    if (error.message) throw error;
+    throw new Error('Network error: Could not connect to server');
+  }
 };
 
 export const registerUser = async (email: string, password: string): Promise<AuthResponse> => {
-  const res = await fetch(`${API_URL}/auth/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
-  if (!res.ok) throw new Error('Registration failed');
-  return res.json();
+  try {
+    const res = await fetch(`${API_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ error: 'Registration failed' }));
+      throw new Error(error.error || error.message || 'Registration failed');
+    }
+    return res.json();
+  } catch (error: any) {
+    if (error.message) throw error;
+    throw new Error('Network error: Could not connect to server');
+  }
 };
 
 export const getProfile = async (token: string) => {
@@ -53,9 +76,14 @@ export const getProfile = async (token: string) => {
 
 // Проверка доступности OAuth провайдеров
 export const getOAuthStatus = async (): Promise<{ google: boolean; facebook: boolean; apple: boolean }> => {
-  const res = await fetch(`${API_URL}/auth/oauth/status`);
-  if (!res.ok) return { google: false, facebook: false, apple: false };
-  return res.json();
+  try {
+    const res = await fetch(`${API_URL}/auth/oauth/status`);
+    if (!res.ok) return { google: false, facebook: false, apple: false };
+    return res.json();
+  } catch (error) {
+    console.error('Failed to fetch OAuth status:', error);
+    return { google: false, facebook: false, apple: false };
+  }
 };
 
 // --- Project / Gallery Services ---
