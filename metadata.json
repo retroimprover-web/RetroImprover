@@ -1,0 +1,7 @@
+{
+  "name": "RetroImprover",
+  "description": "Restore vintage photos and bring them to life with AI animation.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
