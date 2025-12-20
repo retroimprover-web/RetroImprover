@@ -1,25 +1,29 @@
 # RetroImprover
 
-Веб-приложение для восстановления и анимации винтажных фотографий с использованием искусственного интеллекта.
+AI-powered vintage photo restoration and animation web application.
 
-## Структура проекта
+## 🚀 Tech Stack
+
+- **Frontend**: React + Vite + TypeScript
+- **Backend**: Node.js + Express + TypeScript
+- **Database**: PostgreSQL + Prisma ORM
+- **AI**: Google Gemini API
+- **Auth**: JWT + OAuth (Google, Facebook, Apple)
+
+## 📁 Project Structure
 
 ```
 RetroImprover/
-├── backend/              # Backend API (Node.js/Express/TypeScript)
-│   ├── src/             # Исходный код бэкенда
-│   ├── prisma/          # Схема базы данных
-│   ├── package.json     # Зависимости бэкенда
-│   └── README.md        # Документация бэкенда
-├── services/            # Общие сервисы (если есть)
-├── App.tsx             # Главный компонент фронтенда
-├── index.html          # HTML точка входа
-├── index.tsx           # React точка входа
-├── vite.config.ts      # Конфигурация Vite
-└── package.json        # Зависимости фронтенда
+├── backend/          # Backend API (Express)
+│   ├── src/
+│   ├── prisma/
+│   └── package.json
+├── services/         # Frontend API client
+├── App.tsx          # Main React component
+└── package.json     # Frontend dependencies
 ```
 
-## Быстрый старт
+## 🛠️ Local Development
 
 ### Backend
 
@@ -27,13 +31,13 @@ RetroImprover/
 cd backend
 npm install
 cp .env.example .env
-# Отредактируйте .env и укажите DATABASE_URL, JWT_SECRET, GOOGLE_GENAI_API_KEY
+# Edit .env with your configuration
 npm run prisma:generate
 npm run prisma:migrate
 npm run dev
 ```
 
-Подробная документация: [backend/README.md](./backend/README.md)
+Backend runs on `http://localhost:3000`
 
 ### Frontend
 
@@ -42,26 +46,35 @@ npm install
 npm run dev
 ```
 
-## Технологии
+Frontend runs on `http://localhost:5173`
 
-**Frontend:**
-- React
-- TypeScript
-- Vite
+## 🌐 Deployment
 
-**Backend:**
-- Node.js
-- Express.js
-- TypeScript
-- PostgreSQL
-- Prisma
-- JWT + Passport.js (OAuth)
-- Google Gemini API
-- Google Veo API
+See `DEPLOY_STEPS.md` for detailed deployment instructions.
 
-## Документация
+**Quick deploy:**
+- Backend: Railway
+- Frontend: Vercel
 
-- [Backend документация](./backend/README.md)
-- [Полная документация проекта](./backend/PROJECT_DOCUMENTATION.md)
-- [Быстрый старт бэкенда](./backend/QUICKSTART.md)
+## 📝 Environment Variables
 
+### Backend (.env)
+- `DATABASE_URL` - PostgreSQL connection string
+- `JWT_SECRET` - Secret key for JWT tokens
+- `GOOGLE_GENAI_API_KEY` - Google Gemini API key
+- `FRONTEND_URL` - Frontend URL for CORS
+- OAuth credentials (optional)
+
+### Frontend (.env)
+- `VITE_API_URL` - Backend API URL
+
+## 📚 Documentation
+
+- `DEPLOY_STEPS.md` - Step-by-step deployment guide
+- `DEPLOY_NOW.md` - Detailed deployment instructions
+- `GOOGLE_OAUTH_SETUP_GUIDE.md` - OAuth setup guide
+- `backend/README.md` - Backend documentation
+
+## 📄 License
+
+ISC
