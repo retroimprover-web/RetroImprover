@@ -68,20 +68,32 @@ git push -u origin main
 
 ### 2.5. Настройка переменных окружения
 
-В настройках backend сервиса → **"Variables"** → добавьте:
+**ВАЖНО:** Сначала добавьте `DATABASE_URL`, иначе сборка не пройдет!
 
-```env
-NODE_ENV=production
-PORT=3000
-DATABASE_URL=<скопируйте из PostgreSQL сервиса>
-JWT_SECRET=<сгенерируйте случайный ключ, например: openssl rand -base64 32>
-GOOGLE_GENAI_API_KEY=<ваш ключ из .env>
-FRONTEND_URL=https://your-frontend.vercel.app
-UPLOAD_DIR=./uploads
-MAX_FILE_SIZE=10485760
-```
+В настройках backend сервиса → **"Variables"**:
 
-**Важно:** `FRONTEND_URL` пока оставьте временный, обновим после деплоя фронтенда.
+1. **Добавьте DATABASE_URL (обязательно первым!):**
+   - Нажмите **"Reference Variable"** или **"Add from Service"**
+   - Выберите ваш **PostgreSQL сервис**
+   - Выберите переменную `DATABASE_URL`
+   - Это создаст автоматическую ссылку на переменную из PostgreSQL
+   - **Альтернатива:** Скопируйте `DATABASE_URL` из PostgreSQL сервиса → Variables и добавьте вручную
+
+2. **Добавьте остальные переменные:**
+   ```env
+   NODE_ENV=production
+   PORT=3000
+   JWT_SECRET=<сгенерируйте случайный ключ, например: openssl rand -base64 32>
+   GOOGLE_GENAI_API_KEY=<ваш ключ из .env>
+   FRONTEND_URL=https://your-frontend.vercel.app
+   UPLOAD_DIR=./uploads
+   MAX_FILE_SIZE=10485760
+   ```
+
+**Важно:** 
+- `DATABASE_URL` должен быть добавлен **до** первого деплоя
+- Используйте **"Reference Variable"** для автоматического обновления при изменении PostgreSQL
+- `FRONTEND_URL` пока оставьте временный, обновим после деплоя фронтенда
 
 ### 2.6. Настройка команд деплоя
 
