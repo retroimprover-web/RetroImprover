@@ -6,10 +6,11 @@ export interface AuthRequest extends Request {
 }
 
 export const authenticate = async (
-  req: AuthRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  const authReq = req as AuthRequest;
   try {
     const authHeader = req.headers.authorization;
     
@@ -21,7 +22,7 @@ export const authenticate = async (
     const token = authHeader.substring(7);
     const decoded = verifyToken(token);
     
-    req.user = decoded;
+    authReq.user = decoded;
     next();
   } catch (error) {
     res.status(401).json({ error: 'Недействительный токен' });

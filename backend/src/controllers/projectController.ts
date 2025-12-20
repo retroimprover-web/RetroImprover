@@ -1,19 +1,20 @@
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import prisma from '../config/database';
 import { AuthRequest } from '../middleware/auth';
 import path from 'path';
 import fs from 'fs';
 
-export const getProjects = async (req: AuthRequest, res: Response): Promise<void> => {
+export const getProjects = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
       res.status(401).json({ error: 'Неавторизован' });
       return;
     }
 
     const { liked } = req.query;
     const where: any = {
-      userId: req.user.userId,
+      userId: authReq.user.userId,
     };
 
     if (liked === 'true') {
@@ -42,9 +43,10 @@ export const getProjects = async (req: AuthRequest, res: Response): Promise<void
   }
 };
 
-export const toggleLike = async (req: AuthRequest, res: Response): Promise<void> => {
+export const toggleLike = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
       res.status(401).json({ error: 'Неавторизован' });
       return;
     }
@@ -54,7 +56,7 @@ export const toggleLike = async (req: AuthRequest, res: Response): Promise<void>
     const project = await prisma.project.findFirst({
       where: {
         id,
-        userId: req.user.userId,
+        userId: authReq.user.userId,
       },
     });
 
@@ -77,9 +79,10 @@ export const toggleLike = async (req: AuthRequest, res: Response): Promise<void>
   }
 };
 
-export const deleteProject = async (req: AuthRequest, res: Response): Promise<void> => {
+export const deleteProject = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
       res.status(401).json({ error: 'Неавторизован' });
       return;
     }
@@ -89,7 +92,7 @@ export const deleteProject = async (req: AuthRequest, res: Response): Promise<vo
     const project = await prisma.project.findFirst({
       where: {
         id,
-        userId: req.user.userId,
+        userId: authReq.user.userId,
       },
     });
 

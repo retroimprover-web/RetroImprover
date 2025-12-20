@@ -1,13 +1,14 @@
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import prisma from '../config/database';
 import { AuthRequest } from '../middleware/auth';
 import { restoreImage, generateAnimationPrompts, generateVideo as generateVideoUtil } from '../utils/gemini';
 import path from 'path';
 import fs from 'fs';
 
-export const restore = async (req: AuthRequest, res: Response): Promise<void> => {
+export const restore = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
       res.status(401).json({ error: 'Неавторизован' });
       return;
     }
@@ -19,7 +20,7 @@ export const restore = async (req: AuthRequest, res: Response): Promise<void> =>
 
     // Проверяем баланс кредитов
     const user = await prisma.user.findUnique({
-      where: { id: req.user.userId },
+      where: { id: authReq.user.userId },
     });
 
     if (!user) {
@@ -100,9 +101,10 @@ export const restore = async (req: AuthRequest, res: Response): Promise<void> =>
   }
 };
 
-export const generatePrompts = async (req: AuthRequest, res: Response): Promise<void> => {
+export const generatePrompts = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
       res.status(401).json({ error: 'Неавторизован' });
       return;
     }
@@ -118,7 +120,7 @@ export const generatePrompts = async (req: AuthRequest, res: Response): Promise<
     const project = await prisma.project.findFirst({
       where: {
         id: projectId,
-        userId: req.user.userId,
+        userId: authReq.user.userId,
       },
     });
 
@@ -150,9 +152,10 @@ export const generatePrompts = async (req: AuthRequest, res: Response): Promise<
   }
 };
 
-export const generateVideo = async (req: AuthRequest, res: Response): Promise<void> => {
+export const generateVideo = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
       res.status(401).json({ error: 'Неавторизован' });
       return;
     }
@@ -168,7 +171,7 @@ export const generateVideo = async (req: AuthRequest, res: Response): Promise<vo
     const project = await prisma.project.findFirst({
       where: {
         id: projectId,
-        userId: req.user.userId,
+        userId: authReq.user.userId,
       },
     });
 
@@ -184,7 +187,7 @@ export const generateVideo = async (req: AuthRequest, res: Response): Promise<vo
 
     // Проверяем баланс кредитов (требуется 3 кредита)
     const user = await prisma.user.findUnique({
-      where: { id: req.user.userId },
+      where: { id: authReq.user.userId },
     });
 
     if (!user) {

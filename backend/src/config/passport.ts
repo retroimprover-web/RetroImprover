@@ -37,7 +37,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
         try {
           const email = profile.emails?.[0]?.value;
           if (!email) {
-            return done(new Error('Google account has no email'), null);
+            return done(new Error('Google account has no email'));
           }
 
           let user = await prisma.user.findUnique({
@@ -56,7 +56,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
 
           return done(null, user);
         } catch (error) {
-          return done(error, null);
+          return done(error);
         }
       }
     )
@@ -81,7 +81,7 @@ if (process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET) {
         try {
           const email = profile.emails?.[0]?.value;
           if (!email) {
-            return done(new Error('Facebook account has no email'), null);
+            return done(new Error('Facebook account has no email'));
           }
 
           let user = await prisma.user.findUnique({
@@ -100,7 +100,7 @@ if (process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET) {
 
           return done(null, user);
         } catch (error) {
-          return done(error, null);
+          return done(error);
         }
       }
     )
@@ -127,11 +127,11 @@ if (
           process.env.APPLE_CALLBACK_URL ||
           '/api/auth/apple/callback',
       },
-      async (accessToken, refreshToken, idToken, profile, done) => {
+      async (accessToken: string, refreshToken: string, idToken: any, profile: any, done: (error: any, user?: any) => void) => {
         try {
-          const email = profile?.email || idToken?.email;
+          const email = profile?.email || (typeof idToken === 'object' ? idToken?.email : null);
           if (!email) {
-            return done(new Error('Apple account has no email'), null);
+            return done(new Error('Apple account has no email'));
           }
 
           let user = await prisma.user.findUnique({
@@ -150,7 +150,7 @@ if (
 
           return done(null, user);
         } catch (error) {
-          return done(error, null);
+          return done(error);
         }
       }
     )

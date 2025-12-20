@@ -4,12 +4,9 @@ import { authenticate } from '../middleware/auth';
 
 const router = Router();
 
-// Все маршруты требуют аутентификации
-router.use(authenticate);
-
-router.get('/', getProjects);
-router.post('/:id/like', toggleLike);
-router.delete('/:id', deleteProject);
+router.get('/', authenticate, getProjects);
+router.post('/:id/like', authenticate, toggleLike);
+router.delete('/:id', authenticate, deleteProject);
 
 export default router;
 

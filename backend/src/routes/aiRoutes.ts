@@ -5,12 +5,9 @@ import { upload } from '../config/upload';
 
 const router = Router();
 
-// Все маршруты требуют аутентификации
-router.use(authenticate);
-
-router.post('/restore', upload.single('file'), restore);
-router.post('/prompts', generatePrompts);
-router.post('/video', generateVideo);
+router.post('/restore', authenticate, upload.single('file'), restore);
+router.post('/prompts', authenticate, generatePrompts);
+router.post('/video', authenticate, generateVideo);
 
 export default router;
 
