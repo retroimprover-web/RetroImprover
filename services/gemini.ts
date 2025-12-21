@@ -83,11 +83,31 @@ export const getProfile = async (token: string) => {
 // Проверка доступности OAuth провайдеров
 export const getOAuthStatus = async (): Promise<{ google: boolean; facebook: boolean; apple: boolean }> => {
   try {
-    const res = await fetch(`${API_URL}/auth/oauth/status`);
-    if (!res.ok) return { google: false, facebook: false, apple: false };
-    return res.json();
-  } catch (error) {
-    console.error('Failed to fetch OAuth status:', error);
+    console.log('[OAuth Status] Fetching from:', `${API_URL}/auth/oauth/status`);
+    const res = await fetch(`${API_URL}/auth/oauth/status`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!res.ok) {
+      console.error('[OAuth Status] Response not OK:', res.status, res.statusText);
+      const text = await res.text();
+      console.error('[OAuth Status] Response body:', text);
+      return { google: false, facebook: false, apple: false };
+    }
+    
+    const data = await res.json();
+    console.log('[OAuth Status] Success:', data);
+    return data;
+  } catch (error: any) {
+    console.error('[OAuth Status] Failed to fetch:', error);
+    console.error('[OAuth Status] Error details:', {
+      message: error.message,
+      stack: error.stack,
+      API_URL: API_URL
+    });
     return { google: false, facebook: false, apple: false };
   }
 };
