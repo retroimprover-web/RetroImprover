@@ -1,13 +1,19 @@
 // This file is now acting as the API Client for your Backend
 // Backend runs on localhost:3000 in development, or VITE_API_URL in production
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+let API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+// Исправляем URL если он без протокола (добавляем https://)
+if (API_BASE && !API_BASE.startsWith('http://') && !API_BASE.startsWith('https://')) {
+  API_BASE = `https://${API_BASE}`;
+}
+
 // Убеждаемся, что URL заканчивается на /api
 const API_URL = API_BASE.endsWith('/api') ? API_BASE : `${API_BASE}/api`;
 
-// Логирование для отладки (только в development)
-if (import.meta.env.DEV) {
-  console.log('API URL:', API_URL);
-}
+// Логирование для отладки (всегда, чтобы видеть в production)
+console.log('[API Config] VITE_API_URL from env:', import.meta.env.VITE_API_URL);
+console.log('[API Config] API_BASE:', API_BASE);
+console.log('[API Config] API_URL:', API_URL);
 
 interface AuthResponse {
   token: string;
