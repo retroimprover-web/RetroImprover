@@ -91,10 +91,11 @@ export const getOAuthStatus = async (): Promise<{ google: boolean; facebook: boo
       },
     });
     
+    console.log('[OAuth Status] Response status:', res.status, res.statusText);
+    
     if (!res.ok) {
-      console.error('[OAuth Status] Response not OK:', res.status, res.statusText);
       const text = await res.text();
-      console.error('[OAuth Status] Response body:', text);
+      console.error('[OAuth Status] Response not OK. Status:', res.status, 'Body:', text);
       return { google: false, facebook: false, apple: false };
     }
     
@@ -105,7 +106,6 @@ export const getOAuthStatus = async (): Promise<{ google: boolean; facebook: boo
     console.error('[OAuth Status] Failed to fetch:', error);
     console.error('[OAuth Status] Error details:', {
       message: error.message,
-      stack: error.stack,
       API_URL: API_URL
     });
     return { google: false, facebook: false, apple: false };
