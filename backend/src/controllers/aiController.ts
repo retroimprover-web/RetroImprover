@@ -36,29 +36,25 @@ export const restore = async (req: Request, res: Response): Promise<void> => {
     const originalImagePath = req.file.path;
 
     // Вызываем Google API для восстановления изображения
-    // TODO: Настроить правильный API для восстановления изображений
     let restoredImagePath: string;
     try {
-      const restoredResult = await restoreImage(originalImagePath);
-      // Если API возвращает путь к файлу, используем его
-      // Иначе создаем копию оригинального изображения
-      if (fs.existsSync(restoredResult)) {
-        restoredImagePath = restoredResult;
-      } else {
-        // Временно создаем копию для демонстрации
-        // TODO: Заменить на реальное восстановление через Google API
-        const ext = path.extname(originalImagePath);
-        const restoredFileName = `restored-${Date.now()}${ext}`;
-        restoredImagePath = path.join(path.dirname(originalImagePath), restoredFileName);
-        fs.copyFileSync(originalImagePath, restoredImagePath);
+      restoredImagePath = await restoreImage(originalImagePath);
+      
+      // Проверяем, что файл существует
+      if (!fs.existsSync(restoredImagePath)) {
+        throw new Error('Восстановленное изображение не было создано');
       }
-    } catch (error) {
-      console.error('Ошибка при восстановлении изображения:', error);
-      // В случае ошибки создаем копию оригинального изображения
-      const ext = path.extname(originalImagePath);
-      const restoredFileName = `restored-${Date.now()}${ext}`;
-      restoredImagePath = path.join(path.dirname(originalImagePath), restoredFileName);
-      fs.copyFileSync(originalImagePath, restoredImagePath);
+      
+      console.log('✅ Изображение успешно восстановлено:', restoredImagePath);
+    } catch (error: any) {
+      console.error('❌ Ошибка при восстановлении изображения:', error);
+      
+      // В случае ошибки НЕ списываем кредиты и возвращаем ошибку
+      res.status(500).json({ 
+        error: 'Не удалось восстановить изображение', 
+        details: error.message || 'Неизвестная ошибка'
+      });
+      return;
     }
 
     // Создаем проект в БД
@@ -139,7 +135,23 @@ export const generatePrompts = async (req: Request, res: Response): Promise<void
     }
 
     // Генерируем промпты
-    const prompts = await generateAnimationPrompts(project.restoredImage);
+    let prompts: string[];
+    try {
+      prompts = await generateAnimationPrompts(project.restoredImage);
+      
+      if (!prompts || prompts.length < 4) {
+        throw new Error('Не удалось сгенерировать 4 промпта');
+      }
+      
+      console.log('✅ Успешно сгенерировано', prompts.length, 'промптов');
+    } catch (error: any) {
+      console.error('❌ Ошибка при генерации промптов:', error);
+      res.status(500).json({ 
+        error: 'Не удалось сгенерировать промпты', 
+        details: error.message || 'Неизвестная ошибка'
+      });
+      return;
+    }
 
     // Обновляем проект в БД
     await prisma.project.update({
@@ -204,24 +216,23 @@ export const generateVideo = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Генерируем видео
-    let videoUrl: string;
+    // Генерируем видео (это может занять 1-2 минуты)
+    let videoPath: string;
     try {
-      const videoResult = await generateVideoUtil(project.restoredImage, selectedPrompts);
-      // Если API возвращает URL, используем его
-      // Иначе создаем заглушку
-      if (videoResult.startsWith('http') || videoResult.startsWith('/')) {
-        videoUrl = videoResult;
-      } else {
-        // Создаем путь для видео файла (заглушка)
-        const videoFileName = `video-${Date.now()}.mp4`;
-        const videoPath = path.join(path.dirname(project.restoredImage), videoFileName);
-        // В реальности здесь будет сохранен файл видео
-        videoUrl = videoPath;
+      console.log('🔄 Начало генерации видео...');
+      videoPath = await generateVideoUtil(project.restoredImage, selectedPrompts);
+      
+      // Проверяем, что файл существует
+      if (!fs.existsSync(videoPath)) {
+        throw new Error('Видео не было создано');
       }
+      
+      console.log('✅ Видео успешно сгенерировано:', videoPath);
     } catch (error: any) {
-      console.error('Ошибка при генерации видео:', error);
-      console.error('Детали ошибки:', error.message, error.stack);
+      console.error('❌ Ошибка при генерации видео:', error);
+      console.error('Детали ошибки:', error.message);
+      
+      // В случае ошибки НЕ списываем кредиты и возвращаем ошибку
       res.status(500).json({ 
         error: 'Не удалось сгенерировать видео', 
         details: error.message || 'Неизвестная ошибка'
@@ -233,7 +244,7 @@ export const generateVideo = async (req: Request, res: Response): Promise<void> 
     await prisma.project.update({
       where: { id: projectId },
       data: {
-        video: videoUrl,
+        video: videoPath,
       },
     });
 
@@ -255,7 +266,7 @@ export const generateVideo = async (req: Request, res: Response): Promise<void> 
       'http://localhost:3000';
     
     res.json({
-      videoUrl: `${backendUrl}/uploads/${path.basename(videoUrl)}`,
+      videoUrl: `${backendUrl}/uploads/${path.basename(videoPath)}`,
       creditsLeft: updatedUser.credits,
     });
   } catch (error) {
