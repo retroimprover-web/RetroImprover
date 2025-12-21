@@ -2,9 +2,28 @@
 // Backend runs on localhost:3000 in development, or VITE_API_URL in production
 let API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-// Исправляем URL если он без протокола (добавляем https://)
-if (API_BASE && !API_BASE.startsWith('http://') && !API_BASE.startsWith('https://')) {
-  API_BASE = `https://${API_BASE}`;
+// Очищаем URL от лишних путей и параметров
+if (API_BASE) {
+  // Удаляем протокол если есть, чтобы нормализовать
+  API_BASE = API_BASE.trim();
+  
+  // Удаляем /uploads/ если случайно попал
+  API_BASE = API_BASE.replace(/\/uploads\/?/g, '');
+  
+  // Удаляем /api если есть (добавим позже)
+  API_BASE = API_BASE.replace(/\/api\/?$/g, '');
+  
+  // Удаляем слэши в начале и конце
+  API_BASE = API_BASE.replace(/^\/+|\/+$/g, '');
+  
+  // Если начинается с http:// или https://, оставляем как есть
+  // Иначе добавляем https://
+  if (!API_BASE.startsWith('http://') && !API_BASE.startsWith('https://')) {
+    API_BASE = `https://${API_BASE}`;
+  }
+  
+  // Удаляем протокол если он дублируется
+  API_BASE = API_BASE.replace(/^https?:\/\/https?:\/\//, 'https://');
 }
 
 // Убеждаемся, что URL заканчивается на /api
@@ -12,8 +31,8 @@ const API_URL = API_BASE.endsWith('/api') ? API_BASE : `${API_BASE}/api`;
 
 // Логирование для отладки (всегда, чтобы видеть в production)
 console.log('[API Config] VITE_API_URL from env:', import.meta.env.VITE_API_URL);
-console.log('[API Config] API_BASE:', API_BASE);
-console.log('[API Config] API_URL:', API_URL);
+console.log('[API Config] API_BASE (cleaned):', API_BASE);
+console.log('[API Config] API_URL (final):', API_URL);
 
 interface AuthResponse {
   token: string;
