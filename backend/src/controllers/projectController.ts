@@ -26,14 +26,21 @@ export const getProjects = async (req: Request, res: Response): Promise<void> =>
       orderBy: { createdAt: 'desc' },
     });
 
+    // Получаем URL бэкенда (используем https в продакшене)
+    const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+    const backendUrl = process.env.BACKEND_URL || 
+      (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null) ||
+      `${protocol}://${req.get('host')}` || 
+      'http://localhost:3000';
+    
     // Преобразуем пути в URL
     const projectsWithUrls = projects.map((project) => ({
       ...project,
-      originalUrl: `/uploads/${path.basename(project.originalImage)}`,
+      originalUrl: `${backendUrl}/uploads/${path.basename(project.originalImage)}`,
       restoredUrl: project.restoredImage
-        ? `/uploads/${path.basename(project.restoredImage)}`
+        ? `${backendUrl}/uploads/${path.basename(project.restoredImage)}`
         : null,
-      videoUrl: project.video ? `/uploads/${path.basename(project.video)}` : null,
+      videoUrl: project.video ? `${backendUrl}/uploads/${path.basename(project.video)}` : null,
     }));
 
     res.json(projectsWithUrls);

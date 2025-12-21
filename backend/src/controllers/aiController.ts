@@ -81,13 +81,18 @@ export const restore = async (req: Request, res: Response): Promise<void> => {
       },
     });
 
-    const baseUrl = process.env.FRONTEND_URL?.replace(':5173', ':3000') || 'http://localhost:3000';
+    // Получаем URL бэкенда (используем https в продакшене)
+    const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+    const backendUrl = process.env.BACKEND_URL || 
+      (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null) ||
+      `${protocol}://${req.get('host')}` || 
+      'http://localhost:3000';
     
     res.json({
       project: {
         id: project.id,
-        originalImage: `${baseUrl}/uploads/${path.basename(project.originalImage)}`,
-        restoredImage: `${baseUrl}/uploads/${path.basename(project.restoredImage!)}`,
+        originalImage: `${backendUrl}/uploads/${path.basename(project.originalImage)}`,
+        restoredImage: `${backendUrl}/uploads/${path.basename(project.restoredImage!)}`,
         video: null,
         prompts: null,
         isLiked: false,
@@ -215,9 +220,14 @@ export const generateVideo = async (req: Request, res: Response): Promise<void> 
         // В реальности здесь будет сохранен файл видео
         videoUrl = videoPath;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Ошибка при генерации видео:', error);
-      throw new Error('Не удалось сгенерировать видео');
+      console.error('Детали ошибки:', error.message, error.stack);
+      res.status(500).json({ 
+        error: 'Не удалось сгенерировать видео', 
+        details: error.message || 'Неизвестная ошибка'
+      });
+      return;
     }
 
     // Сохраняем видео в проект
@@ -238,8 +248,15 @@ export const generateVideo = async (req: Request, res: Response): Promise<void> 
       },
     });
 
+    // Получаем URL бэкенда (используем https в продакшене)
+    const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+    const backendUrl = process.env.BACKEND_URL || 
+      (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null) ||
+      `${protocol}://${req.get('host')}` || 
+      'http://localhost:3000';
+    
     res.json({
-      videoUrl: `/uploads/${path.basename(videoUrl)}`,
+      videoUrl: `${backendUrl}/uploads/${path.basename(videoUrl)}`,
       creditsLeft: updatedUser.credits,
     });
   } catch (error) {
