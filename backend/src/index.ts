@@ -17,28 +17,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  'http://localhost:5173',
-  'http://localhost:3000',
-].filter(Boolean) as string[];
-
 app.use(cors({
-  origin: (origin, callback) => {
-    // Разрешаем запросы без origin (например, из Postman или мобильных приложений)
-    if (!origin) return callback(null, true);
-    
-    // Проверяем, есть ли origin в списке разрешенных
-    if (allowedOrigins.some(allowed => origin === allowed || origin.startsWith(allowed))) {
-      callback(null, true);
-    } else {
-      console.warn(`CORS blocked origin: ${origin}. Allowed:`, allowedOrigins);
-      callback(null, true); // Разрешаем для отладки, в продакшене можно вернуть ошибку
-    }
-  },
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 app.use(express.json());

@@ -35,31 +35,25 @@ export const restore = async (req: Request, res: Response): Promise<void> => {
 
     const originalImagePath = req.file.path;
 
-    // Вызываем Gemini API для восстановления изображения
-    // Примечание: В реальности Gemini может не возвращать изображение напрямую
-    // Здесь мы используем оригинальное изображение как восстановленное для MVP
-    // В продакшене нужно будет использовать правильный API для обработки изображений
+    // Вызываем функцию восстановления изображения
     let restoredImagePath: string;
     try {
-      const restoredResult = await restoreImage(originalImagePath);
-      // Если API возвращает путь к файлу, используем его
-      // Иначе создаем копию оригинального изображения
-      if (fs.existsSync(restoredResult)) {
-        restoredImagePath = restoredResult;
-      } else {
-        // Создаем копию для демонстрации
-        const ext = path.extname(originalImagePath);
-        const restoredFileName = `restored-${Date.now()}${ext}`;
-        restoredImagePath = path.join(path.dirname(originalImagePath), restoredFileName);
-        fs.copyFileSync(originalImagePath, restoredImagePath);
+      restoredImagePath = await restoreImage(originalImagePath);
+      
+      // Проверяем, что файл создан
+      if (!fs.existsSync(restoredImagePath)) {
+        throw new Error('Восстановленное изображение не было создано');
       }
+      
+      console.log(`Изображение успешно восстановлено: ${restoredImagePath}`);
     } catch (error) {
       console.error('Ошибка при восстановлении изображения:', error);
-      // В случае ошибки создаем копию оригинального изображения
+      // В случае ошибки создаем копию оригинального изображения как fallback
       const ext = path.extname(originalImagePath);
       const restoredFileName = `restored-${Date.now()}${ext}`;
       restoredImagePath = path.join(path.dirname(originalImagePath), restoredFileName);
       fs.copyFileSync(originalImagePath, restoredImagePath);
+      console.warn('Использован fallback: копия оригинального изображения');
     }
 
     // Создаем проект в БД

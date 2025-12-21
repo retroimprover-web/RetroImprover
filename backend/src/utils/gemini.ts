@@ -1,10 +1,9 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import fs from 'fs';
+import path from 'path';
+import sharp from 'sharp';
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENAI_API_KEY || '');
-
-// Промпт для восстановления фотографий
-const RESTORE_SYSTEM_PROMPT = `Act as a high-end photo restoration AI. Restore this image to look like a modern iPhone 15 Pro photo. Enhance colors, remove scratches, fix fading, improve sharpness, and make it look professionally restored while maintaining the original character and authenticity.`;
 
 // Промпт для генерации анимационных промптов
 const ANIMATION_PROMPTS_SYSTEM_PROMPT = `You are a creative AI assistant. Analyze this restored vintage photo and generate 4 different, creative animation prompts that would bring this photo to life. Each prompt should describe a cinematic, smooth motion that fits the scene. Return only a JSON array of 4 strings, no additional text.`;
@@ -14,34 +13,28 @@ const VIDEO_PROMPT_PREFIX = `Cinematic shot, `;
 const VIDEO_PROMPT_SUFFIX = `, high quality, smooth motion, professional cinematography, 4K`;
 
 /**
- * Восстанавливает изображение используя Gemini 2.5 Flash Image
+ * Восстанавливает изображение используя обработку изображений (sharp)
+ * Улучшает контраст, яркость, резкость и цвет
  */
 export async function restoreImage(imagePath: string): Promise<string> {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image' });
+    const ext = path.extname(imagePath);
+    const restoredFileName = `restored-${Date.now()}${ext}`;
+    const restoredImagePath = path.join(path.dirname(imagePath), restoredFileName);
     
-    const imageData = fs.readFileSync(imagePath);
-    const base64Image = imageData.toString('base64');
+    // Используем sharp для улучшения изображения
+    await sharp(imagePath)
+      .normalize() // Нормализация яркости и контраста
+      .sharpen({ sigma: 1.5 }) // Улучшение резкости
+      .modulate({
+        brightness: 1.1, // Увеличение яркости на 10%
+        saturation: 1.15, // Увеличение насыщенности на 15%
+      })
+      .gamma(1.1) // Коррекция гаммы для лучшего контраста
+      .toFile(restoredImagePath);
     
-    const result = await model.generateContent([
-      RESTORE_SYSTEM_PROMPT,
-      {
-        inlineData: {
-          data: base64Image,
-          mimeType: 'image/jpeg',
-        },
-      },
-    ]);
-
-    const response = await result.response;
-    const text = response.text();
-    
-    // Gemini возвращает текст, но для изображений нужно использовать другой подход
-    // В реальности, для восстановления изображений может потребоваться другой API
-    // Здесь возвращаем путь к оригинальному изображению как заглушку
-    // В продакшене нужно будет использовать правильный API для обработки изображений
-    
-    return text;
+    console.log(`Изображение восстановлено: ${restoredImagePath}`);
+    return restoredImagePath;
   } catch (error) {
     console.error('Ошибка при восстановлении изображения:', error);
     throw new Error('Не удалось восстановить изображение');
