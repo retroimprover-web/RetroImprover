@@ -33,15 +33,34 @@ export const getProjects = async (req: Request, res: Response): Promise<void> =>
       `${protocol}://${req.get('host')}` || 
       'http://localhost:3000';
     
-    // Преобразуем пути в URL
-    const projectsWithUrls = projects.map((project) => ({
-      ...project,
-      originalUrl: `${backendUrl}/uploads/${path.basename(project.originalImage)}`,
-      restoredUrl: project.restoredImage
-        ? `${backendUrl}/uploads/${path.basename(project.restoredImage)}`
-        : null,
-      videoUrl: project.video ? `${backendUrl}/uploads/${path.basename(project.video)}` : null,
-    }));
+    // Преобразуем пути в URL и проверяем существование файлов
+    const projectsWithUrls = projects.map((project) => {
+      const originalFileName = path.basename(project.originalImage);
+      const restoredFileName = project.restoredImage ? path.basename(project.restoredImage) : null;
+      const videoFileName = project.video ? path.basename(project.video) : null;
+      
+      // Проверяем существование файлов
+      const originalExists = fs.existsSync(project.originalImage);
+      const restoredExists = project.restoredImage ? fs.existsSync(project.restoredImage) : false;
+      const videoExists = project.video ? fs.existsSync(project.video) : false;
+      
+      if (!originalExists) {
+        console.warn(`⚠️ Оригинальный файл не найден: ${project.originalImage}`);
+      }
+      if (project.restoredImage && !restoredExists) {
+        console.warn(`⚠️ Восстановленный файл не найден: ${project.restoredImage}`);
+      }
+      if (project.video && !videoExists) {
+        console.warn(`⚠️ Видео файл не найден: ${project.video}`);
+      }
+      
+      return {
+        ...project,
+        originalUrl: originalExists ? `${backendUrl}/uploads/${originalFileName}` : null,
+        restoredUrl: restoredExists ? `${backendUrl}/uploads/${restoredFileName}` : null,
+        videoUrl: videoExists ? `${backendUrl}/uploads/${videoFileName}` : null,
+      };
+    });
 
     res.json(projectsWithUrls);
   } catch (error) {

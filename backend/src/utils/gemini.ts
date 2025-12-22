@@ -49,7 +49,22 @@ export async function restoreImage(imagePath: string): Promise<string> {
     });
     
     // Системная инструкция для восстановления
-    const restorePrompt = `Act as a professional photo restorer. Remove noise, fix colors, and enhance details. Output ONLY the restored image.`;
+    const restorePrompt = `Act as a professional photo restorer. Restore this vintage or damaged photo to look like a modern high-quality photo. 
+
+Remove all defects:
+- Remove noise, grain, and artifacts
+- Remove blur and restore sharpness
+- Remove scratches, dust, and physical damage
+- Remove stains and discoloration
+- Remove fading and restore color vibrancy
+
+Enhance quality:
+- Improve sharpness and clarity throughout the image
+- Enhance contrast and brightness appropriately
+- Fix any color shifts and restore natural colors
+- Maintain the original character and authenticity
+
+Output ONLY the restored image without any text or description.`;
     
     // Подготовка картинки
     const imagePart = {
@@ -307,48 +322,17 @@ export async function generateVideo(imagePath: string, prompts: string[]): Promi
       return videoPath;
       
     } catch (restError: any) {
-      console.warn('REST API для Veo не сработал, пробуем через SDK...', restError.message);
-      
-      // Fallback: пробуем через SDK (может не работать для видео)
-      try {
-        const model = genAI.getGenerativeModel({ model: 'veo-3.1-fast-generate-preview' });
-        
-        const result = await model.generateContent([
-          { text: fullPrompt },
-          {
-            inlineData: {
-              data: base64Image,
-              mimeType: mimeType,
-            },
-          },
-        ]);
-
-        const response = await result.response;
-        const text = response.text();
-        
-        // Пытаемся найти URL видео в ответе
-        const urlMatch = text.match(/https?:\/\/[^\s]+\.mp4/);
-        if (urlMatch) {
-          const videoUrl = urlMatch[0];
-          
-          // Скачиваем видео
-          const videoResponse = await axios.get(videoUrl, {
-            responseType: 'arraybuffer',
-          });
-          
-          const videoFileName = `video-${Date.now()}.mp4`;
-          const videoPath = path.join(path.dirname(imagePath), videoFileName);
-          fs.writeFileSync(videoPath, videoResponse.data);
-          
-          console.log('✅ Видео сохранено через SDK:', videoPath);
-          return videoPath;
-        }
-        
-        throw new Error('URL видео не найден в ответе');
-      } catch (sdkError: any) {
-        console.error('❌ Ошибка при генерации видео через SDK:', sdkError);
-        throw new Error(`Не удалось сгенерировать видео: ${sdkError.message}`);
+      console.error('❌ Ошибка при генерации видео через REST API:', restError.message);
+      if (restError.response) {
+        console.error('Ответ API:', JSON.stringify(restError.response.data, null, 2));
       }
+      
+      // Если REST API не работает, проверяем доступность модели
+      if (restError.response?.status === 404) {
+        throw new Error('Модель veo-3.1-fast-generate-preview недоступна. Проверьте доступность модели для вашего API ключа.');
+      }
+      
+      throw new Error(`Не удалось сгенерировать видео: ${restError.message}`);
     }
     
   } catch (error: any) {

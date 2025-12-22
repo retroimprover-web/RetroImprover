@@ -291,13 +291,18 @@ const GridGallery = ({ items, onLoadItem, title, emptyMsg, onLikeToggle }: {
                         className="aspect-[3/4] rounded-xl overflow-hidden relative group border border-white/10 bg-zinc-900"
                     >
                         <div onClick={() => onLoadItem(item)} className="w-full h-full cursor-pointer">
-                            {item.video ? (
+                            {item.videoUrl ? (
                                 <div className="relative w-full h-full">
-                                    <video src={item.video} muted className="w-full h-full object-cover" />
+                                    <video src={item.videoUrl} muted className="w-full h-full object-cover" />
                                     <div className="absolute inset-0 flex items-center justify-center bg-black/40"><Play size={24} className="fill-white text-white"/></div>
                                 </div>
                             ) : (
-                                <img src={item.restoredImage} alt="Saved" className="w-full h-full object-cover" />
+                                <img src={item.restoredUrl || item.originalUrl} alt="Saved" className="w-full h-full object-cover" onError={(e) => {
+                                    // Fallback на оригинальное изображение если восстановленное не загрузилось
+                                    if (e.currentTarget.src !== item.originalUrl) {
+                                        e.currentTarget.src = item.originalUrl;
+                                    }
+                                }} />
                             )}
                         </div>
                         
@@ -571,23 +576,30 @@ export default function App() {
 
   const loadFromGalleryOrProject = (item: any) => {
       setCurrentProjectId(item.id);
-      // Ensure we have full URLs from backend, or assume backend returns full paths
-      // If backend returns relative paths (e.g. /uploads/...), you might need to prepend URL
-      // For this demo, we assume the API Client normalized it or backend sends full URLs
-      setOriginalImage(item.originalImage);
-      setCroppedImage(item.originalImage); // Simplification, ideally store crop
-      setRestoredImage(item.restoredImage);
-      setGeneratedVideo(item.video || null);
+      // Используем правильные поля из API: originalUrl, restoredUrl, videoUrl
+      setOriginalImage(item.originalUrl || item.originalImage);
+      setCroppedImage(item.originalUrl || item.originalImage); // Simplification, ideally store crop
+      setRestoredImage(item.restoredUrl || item.restoredImage);
+      setGeneratedVideo(item.videoUrl || item.video || null);
       
       setStep(AppStep.WORKBENCH);
-      setViewMode(item.video ? ViewMode.VIDEO : ViewMode.RESTORED);
+      setViewMode((item.videoUrl || item.video) ? ViewMode.VIDEO : ViewMode.RESTORED);
       setActiveTab(AppTab.HOME);
       
-      if (!item.video && item.restoredImage) {
+      if (!(item.videoUrl || item.video) && (item.restoredUrl || item.restoredImage)) {
            // If loaded from gallery and has no video, try to fetch prompts or generate
            // For MVP, we might need to re-trigger prompt gen or store prompts in DB
            // We'll leave empty or simple array for now
-           setVideoPrompts(item.prompts ? JSON.parse(item.prompts) : []);
+           if (item.prompts) {
+               try {
+                   const prompts = typeof item.prompts === 'string' ? JSON.parse(item.prompts) : item.prompts;
+                   setVideoPrompts(Array.isArray(prompts) ? prompts : []);
+               } catch (e) {
+                   setVideoPrompts([]);
+               }
+           } else {
+               setVideoPrompts([]);
+           }
       }
   };
 
