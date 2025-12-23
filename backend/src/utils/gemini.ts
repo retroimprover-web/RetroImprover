@@ -2,13 +2,20 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
+import Replicate from 'replicate';
 
-// Используем API ключ из переменной окружения
-const API_KEY = process.env.GOOGLE_GENAI_API_KEY;
+// API ключи из переменных окружения
+const API_KEY = process.env.GOOGLE_GENAI_API_KEY; // Для восстановления изображений
+const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN; // Для генерации видео
 
 if (!API_KEY) {
   console.error('❌ GOOGLE_GENAI_API_KEY не установлен в переменных окружения!');
   throw new Error('GOOGLE_GENAI_API_KEY не установлен. Установите переменную окружения GOOGLE_GENAI_API_KEY.');
+}
+
+if (!REPLICATE_API_TOKEN) {
+  console.error('❌ REPLICATE_API_TOKEN не установлен в переменных окружения!');
+  console.warn('⚠️ Генерация видео будет недоступна без REPLICATE_API_TOKEN');
 }
 
 const genAI = new GoogleGenerativeAI(API_KEY);
@@ -74,9 +81,9 @@ Output ONLY the restored image without any text or description.`;
     
     // Подготовка картинки
     const imagePart = {
-      inlineData: {
+        inlineData: {
         mimeType: mimeType,
-        data: base64Image,
+          data: base64Image,
       },
     };
 
@@ -223,7 +230,7 @@ export async function generateAnimationPrompts(restoredImagePath: string): Promi
       
       if (lines.length >= 4) {
         console.log('✅ Извлечено', lines.length, 'промптов из текста');
-        return lines.slice(0, 4);
+      return lines.slice(0, 4);
       }
     }
     
@@ -234,218 +241,83 @@ export async function generateAnimationPrompts(restoredImagePath: string): Promi
   }
 }
 
-/**
- * Генерирует видео используя Veo 3.1 Fast Generate Preview
- * Модель: veo-3.1-fast-generate-preview
+/** 
+ * Генерирует видео используя Replicate WAN 2.2 i2v-fast
+ * Модель: wan-video/wan-2.2-i2v-fast
  * Задача: Превратить статичное восстановленное фото в 5-секундный ролик
- * 
- * Использует асинхронный подход с поллингом, так как генерация видео занимает 1-2 минуты
  */
 export async function generateVideo(imagePath: string, prompts: string[]): Promise<string> {
   try {
-    console.log('🔄 Начало генерации видео через Veo 3.1 Fast Generate Preview...');
-    console.log('📋 API Key установлен:', API_KEY ? '✅ Да (первые 10 символов: ' + API_KEY.substring(0, 10) + '...)' : '❌ Нет');
+    console.log('🔄 Начало генерации видео через Replicate WAN 2.2...');
+    console.log('📋 API Key установлен:', REPLICATE_API_TOKEN ? '✅ Да' : '❌ Нет');
     
-    if (!API_KEY) {
-      throw new Error('GOOGLE_GENAI_API_KEY не установлен в переменных окружения');
+    if (!REPLICATE_API_TOKEN) {
+      throw new Error('REPLICATE_API_TOKEN не установлен в переменных окружения');
     }
-    
+
+    const replicate = new Replicate({
+      auth: REPLICATE_API_TOKEN,
+    });
+
+    // Читаем изображение и конвертируем в base64 data URI
     const imageData = fs.readFileSync(imagePath);
     const base64Image = imageData.toString('base64');
     const mimeType = imagePath.endsWith('.png') ? 'image/png' : 'image/jpeg';
+    const imageDataUri = `data:${mimeType};base64,${base64Image}`;
     
     console.log('📸 Размер изображения:', imageData.length, 'байт');
     console.log('📸 MIME тип:', mimeType);
     
     // Объединяем промпты
     const combinedPrompt = prompts.join(', ');
-    const fullPrompt = `Cinematic animation: ${combinedPrompt}. High quality, 4k, realistic, smooth motion.`;
+    const fullPrompt = `Cinematic animation: ${combinedPrompt}. High quality, realistic, smooth motion.`;
     
     console.log('📝 Промпт для видео:', fullPrompt);
     console.log('📝 Количество промптов:', prompts.length);
+
+    // Запускаем генерацию через Replicate
+    console.log('🚀 Отправка запроса к Replicate WAN 2.2...');
     
-    // Пробуем использовать Veo API через REST
-    try {
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/veo-3.1-fast-generate-preview:generateVideo?key=${API_KEY}`;
-      console.log('🌐 Отправка запроса к:', apiUrl.replace(API_KEY, 'API_KEY_HIDDEN'));
-      
-      const requestBody = {
-        prompt: fullPrompt,
-        image: {
-          imageBytes: base64Image,
-          mimeType: mimeType,
-        },
-        config: {
-          aspectRatio: '3:4',
-          resolution: '720p',
-        }
-      };
-      
-      console.log('📤 Тело запроса (без imageBytes):', {
-        prompt: requestBody.prompt,
-        image: { mimeType: requestBody.image.mimeType, imageBytesLength: requestBody.image.imageBytes.length },
-        config: requestBody.config
-      });
-      
-      // Запуск операции генерации видео (асинхронно)
-      const operationResponse = await axios.post(
-        apiUrl,
-        requestBody,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          timeout: 60000, // 60 секунд таймаут для начального запроса
-        }
-      );
-      
-      let operation = operationResponse.data;
-      console.log('✅ Операция запущена');
-      console.log('📋 Operation name:', operation.name);
-      console.log('📋 Operation done:', operation.done);
-      console.log('📋 Operation response:', JSON.stringify(operation, null, 2).substring(0, 500));
-      
-      // Если операция уже завершена (синхронный ответ)
-      if (operation.done) {
-        console.log('✅ Операция завершена синхронно');
-      } else {
-        // Поллинг: проверяем статус каждые 10 секунд
-        const maxAttempts = 30; // Максимум 5 минут (30 * 10 секунд)
-        let attempts = 0;
-        
-        console.log('⏳ Начинаем поллинг статуса операции...');
-        
-        while (!operation.done && attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 10000)); // Ждем 10 секунд
-          
-          // Проверяем статус операции
-          const statusUrl = `https://generativelanguage.googleapis.com/v1beta/${operation.name}?key=${API_KEY}`;
-          console.log(`🔄 Проверка статуса (попытка ${attempts + 1}/${maxAttempts})...`);
-          
-          const statusResponse = await axios.get(
-            statusUrl,
-            {
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              timeout: 30000, // 30 секунд таймаут
-            }
-          );
-          
-          operation = statusResponse.data;
-          attempts++;
-          console.log(`📊 Статус операции (попытка ${attempts}/${maxAttempts}):`, {
-            done: operation.done,
-            error: operation.error ? JSON.stringify(operation.error) : null,
-            response: operation.response ? 'present' : 'missing'
-          });
-          
-          if (operation.error) {
-            console.error('❌ Ошибка в операции:', JSON.stringify(operation.error, null, 2));
-            throw new Error(`Ошибка генерации видео: ${JSON.stringify(operation.error)}`);
-          }
+    const output = await replicate.run(
+      "wan-video/wan-2.2-i2v-fast",
+      {
+        input: {
+          image: imageDataUri,
+          prompt: fullPrompt,
+          resolution: "480p", // 480p быстрее и дешевле
+          duration: 5, // 5 секунд видео
         }
       }
-      
-      if (!operation.done) {
-        throw new Error('Превышено время ожидания генерации видео (5 минут)');
-      }
-      
-      console.log('✅ Операция завершена, извлекаем результат...');
-      console.log('📋 Полный ответ операции:', JSON.stringify(operation, null, 2).substring(0, 1000));
-      
-      // Получаем ссылку на видео
-      const response = operation.response;
-      if (!response) {
-        console.error('❌ Нет поля response в операции');
-        throw new Error('Ответ операции не содержит поле response');
-      }
-      
-      const generatedVideos = response.generatedVideos;
-      if (!generatedVideos || !Array.isArray(generatedVideos) || generatedVideos.length === 0) {
-        console.error('❌ Нет generatedVideos в ответе');
-        console.error('📋 Структура response:', JSON.stringify(response, null, 2));
-        throw new Error('Видео не найдено в ответе операции. Проверьте доступность модели Veo для вашего API ключа.');
-      }
-      
-      const video = generatedVideos[0]?.video;
-      if (!video) {
-        console.error('❌ Нет video в generatedVideos[0]');
-        throw new Error('Структура ответа неверна: нет поля video');
-      }
-      
-      const videoUri = video.uri;
-      if (!videoUri) {
-        console.error('❌ Нет uri в video');
-        throw new Error('Ссылка на видео не найдена в ответе');
-      }
-      
-      console.log('✅ Видео успешно сгенерировано');
-      console.log('🔗 Video URI:', videoUri);
-      
-      // Скачиваем видео и сохраняем локально
-      console.log('📥 Скачивание видео...');
-      const videoResponse = await axios.get(videoUri, {
-        responseType: 'arraybuffer',
-        timeout: 120000, // 2 минуты на скачивание
-      });
-      
-      const videoFileName = `video-${Date.now()}.mp4`;
-      const videoPath = path.join(path.dirname(imagePath), videoFileName);
-      fs.writeFileSync(videoPath, videoResponse.data);
-      
-      console.log('✅ Видео сохранено:', videoPath);
-      console.log('📊 Размер видео:', videoResponse.data.length, 'байт');
-      return videoPath;
-      
-    } catch (restError: any) {
-      console.error('❌ Ошибка при генерации видео через REST API');
-      console.error('📋 Сообщение ошибки:', restError.message);
-      
-      if (restError.response) {
-        console.error('📋 HTTP статус:', restError.response.status);
-        console.error('📋 HTTP статус текст:', restError.response.statusText);
-        console.error('📋 Ответ API:', JSON.stringify(restError.response.data, null, 2));
-        
-        // Специфичные ошибки
-        if (restError.response.status === 400) {
-          throw new Error(`Неверный запрос: ${JSON.stringify(restError.response.data)}`);
-        }
-        if (restError.response.status === 401) {
-          throw new Error('API ключ недействителен или отсутствует. Проверьте GOOGLE_GENAI_API_KEY в переменных окружения Railway.');
-        }
-        if (restError.response.status === 403) {
-          throw new Error('Доступ запрещен. Проверьте, что API ключ имеет доступ к Veo API и не был скомпрометирован.');
-        }
-        if (restError.response.status === 404) {
-          throw new Error('Модель veo-3.1-fast-generate-preview недоступна. Проверьте доступность модели для вашего API ключа в Google AI Studio.');
-        }
-        if (restError.response.status === 429) {
-          throw new Error('Превышен лимит запросов. Попробуйте позже.');
-        }
-        if (restError.response.status >= 500) {
-          throw new Error(`Ошибка сервера Google API: ${restError.response.status}. Попробуйте позже.`);
-        }
-      }
-      
-      if (restError.request) {
-        console.error('📋 Запрос был отправлен, но ответа не получено');
-        console.error('📋 URL запроса:', restError.config?.url?.replace(API_KEY, 'API_KEY_HIDDEN'));
-      }
-      
-      if (restError.code === 'ECONNABORTED') {
-        throw new Error('Превышено время ожидания запроса. Попробуйте позже.');
-      }
-      
-      throw new Error(`Не удалось сгенерировать видео: ${restError.message}`);
-    }
+    ) as string;
+
+    console.log('✅ Видео успешно сгенерировано');
+    console.log('🔗 Video URL:', output);
+
+    // Скачиваем видео и сохраняем локально
+    console.log('📥 Скачивание видео...');
+    const videoResponse = await axios.get(output, {
+      responseType: 'arraybuffer',
+      timeout: 120000, // 2 минуты на скачивание
+    });
+
+    const videoFileName = `video-${Date.now()}.mp4`;
+    const videoPath = path.join(path.dirname(imagePath), videoFileName);
+    fs.writeFileSync(videoPath, videoResponse.data);
+
+    console.log('✅ Видео сохранено:', videoPath);
+    console.log('📊 Размер видео:', videoResponse.data.length, 'байт');
     
+    return videoPath;
+
   } catch (error: any) {
     console.error('❌ Ошибка при генерации видео:', error);
     console.error('Детали ошибки:', error.message);
-    if (error.stack) {
-      console.error('Stack trace:', error.stack);
+    
+    if (error.response) {
+      console.error('📋 HTTP статус:', error.response.status);
+      console.error('📋 Ответ API:', JSON.stringify(error.response.data, null, 2));
     }
+    
     throw new Error(`Не удалось сгенерировать видео: ${error.message}`);
   }
 }
