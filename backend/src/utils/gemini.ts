@@ -288,14 +288,36 @@ export async function generateVideo(imagePath: string, prompts: string[]): Promi
           duration: 5, // 5 секунд видео
         }
       }
-    ) as string;
+    );
 
     console.log('✅ Видео успешно сгенерировано');
-    console.log('🔗 Video URL:', output);
+    console.log('📋 Raw output type:', typeof output);
+    console.log('📋 Raw output:', JSON.stringify(output, null, 2).substring(0, 500));
+
+    // Извлекаем URL из ответа (может быть строка, массив или объект)
+    let videoUrl: string;
+    if (typeof output === 'string') {
+      videoUrl = output;
+    } else if (Array.isArray(output) && output.length > 0) {
+      videoUrl = typeof output[0] === 'string' ? output[0] : String(output[0]);
+    } else if (output && typeof output === 'object') {
+      // Пытаемся найти URL в объекте
+      const outputStr = JSON.stringify(output);
+      const urlMatch = outputStr.match(/https?:\/\/[^\s"']+/);
+      if (urlMatch) {
+        videoUrl = urlMatch[0];
+      } else {
+        throw new Error('Не удалось найти URL видео в ответе Replicate');
+      }
+    } else {
+      throw new Error(`Неожиданный формат ответа от Replicate: ${typeof output}`);
+    }
+
+    console.log('🔗 Video URL:', videoUrl);
 
     // Скачиваем видео и сохраняем локально
     console.log('📥 Скачивание видео...');
-    const videoResponse = await axios.get(output, {
+    const videoResponse = await axios.get(videoUrl, {
       responseType: 'arraybuffer',
       timeout: 120000, // 2 минуты на скачивание
     });
