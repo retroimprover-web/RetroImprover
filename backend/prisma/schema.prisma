@@ -15,6 +15,7 @@ model User {
   email        String    @unique
   passwordHash String?
   credits      Int       @default(5)
+  language     String    @default("en") // 'en' or 'ru'
   createdAt    DateTime  @default(now())
   projects     Project[]
 }

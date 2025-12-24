@@ -2,10 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import Cropper from 'react-easy-crop';
 import { AppStep, RestoredImage, SubscriptionPlan, ViewMode, AppTab } from './types';
 import { getCroppedImg, readFile } from './utils';
+import { downloadFile } from './utils/download';
+import { t, detectLanguage, Language } from './i18n';
 import * as API from './services/gemini'; // Renamed to API conceptually
 import { 
   Upload, Scissors, Wand2, Download, Heart, Play, 
-  Loader2, CheckCircle2, ChevronLeft, Menu, Sparkles, X, Image as ImageIcon, Video, ArrowLeft, Plus, FolderOpen, PlusCircle, LogIn, UserPlus
+  Loader2, CheckCircle2, ChevronLeft, Menu, Sparkles, X, Image as ImageIcon, Video, ArrowLeft, Plus, FolderOpen, PlusCircle, LogIn, UserPlus, User, Globe
 } from 'lucide-react';
 
 // --- Icons ---
@@ -87,7 +89,7 @@ const Header = ({ onBack, showBack, onMenu, credits, onAddCredits, highlightCred
   </header>
 );
 
-const AuthScreen = ({ onLogin }: { onLogin: (token: string, user: any) => void }) => {
+const AuthScreen = ({ onLogin, language }: { onLogin: (token: string, user: any) => void, language: Language }) => {
     const [isRegister, setIsRegister] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -132,12 +134,12 @@ const AuthScreen = ({ onLogin }: { onLogin: (token: string, user: any) => void }
             <div className="w-full max-w-sm bg-zinc-900/50 border border-zinc-800 p-8 rounded-3xl shadow-2xl backdrop-blur-sm">
                 <div className="text-center mb-6">
                     <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">RetroImprover</h1>
-                    <p className="text-zinc-400 text-sm">Sign in to sync your projects and credits.</p>
+                    <p className="text-zinc-400 text-sm">{language === 'ru' ? 'Войдите, чтобы синхронизировать проекты и кредиты.' : 'Sign in to sync your projects and credits.'}</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Email</label>
+                        <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">{t('email', language)}</label>
                         <input 
                             type="email" 
                             required 
@@ -147,7 +149,7 @@ const AuthScreen = ({ onLogin }: { onLogin: (token: string, user: any) => void }
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Password</label>
+                        <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">{t('password', language)}</label>
                         <input 
                             type="password" 
                             required 
@@ -160,7 +162,7 @@ const AuthScreen = ({ onLogin }: { onLogin: (token: string, user: any) => void }
                     {error && <div className="text-red-400 text-xs text-center">{error}</div>}
 
                     <Button type="submit" className="w-full" disabled={loading}>
-                        {loading ? <Loader2 className="animate-spin"/> : (isRegister ? 'Create Account' : 'Sign In')}
+                        {loading ? <Loader2 className="animate-spin"/> : (isRegister ? t('createAccount', language) : t('signIn', language))}
                     </Button>
                 </form>
 
@@ -172,7 +174,7 @@ const AuthScreen = ({ onLogin }: { onLogin: (token: string, user: any) => void }
                                 <div className="w-full border-t border-zinc-800"></div>
                             </div>
                             <div className="relative flex justify-center">
-                                <span className="bg-zinc-950 px-2 text-zinc-500 text-xs uppercase tracking-wider">Or continue with</span>
+                                <span className="bg-zinc-950 px-2 text-zinc-500 text-xs uppercase tracking-wider">{t('orContinueWith', language)}</span>
                             </div>
                         </div>
 
@@ -210,7 +212,7 @@ const AuthScreen = ({ onLogin }: { onLogin: (token: string, user: any) => void }
                         onClick={() => setIsRegister(!isRegister)}
                         className="text-sm text-zinc-400 hover:text-white transition-colors"
                     >
-                        {isRegister ? "Already have an account? Sign In" : "Don't have an account? Register"}
+                        {isRegister ? t('alreadyHaveAccount', language) : t('dontHaveAccount', language)}
                     </button>
                 </div>
             </div>
@@ -218,13 +220,16 @@ const AuthScreen = ({ onLogin }: { onLogin: (token: string, user: any) => void }
     );
 }
 
-const Sidebar = ({ isOpen, onClose, activeTab, onSelectTab, onNewProject, onLogout }: { 
+const Sidebar = ({ isOpen, onClose, activeTab, onSelectTab, onNewProject, onLogout, onProfile, language, onLanguageChange }: { 
     isOpen: boolean, 
     onClose: () => void, 
     activeTab: AppTab, 
     onSelectTab: (t: AppTab) => void,
     onNewProject: () => void,
-    onLogout: () => void
+    onLogout: () => void,
+    onProfile: () => void,
+    language: Language,
+    onLanguageChange: (lang: Language) => void
 }) => {
     return (
         <>
@@ -237,16 +242,16 @@ const Sidebar = ({ isOpen, onClose, activeTab, onSelectTab, onNewProject, onLogo
                 
                 <div className="mb-6">
                      <Button onClick={() => { onNewProject(); onClose(); }} className="w-full" size="sm">
-                        <PlusCircle size={18} /> New Restoration
+                        <PlusCircle size={18} /> {t('newRestoration', language)}
                      </Button>
                 </div>
 
                 <nav className="space-y-2 flex-1">
                     {[
-                        { id: AppTab.HOME, label: 'Workbench', icon: Wand2 },
-                        { id: AppTab.PROJECTS, label: 'My Projects', icon: FolderOpen },
-                        { id: AppTab.GALLERY, label: 'Liked Gallery', icon: Heart },
-                        { id: AppTab.PLANS, label: 'Buy Stars', icon: Sparkles },
+                        { id: AppTab.HOME, label: t('workbench', language), icon: Wand2 },
+                        { id: AppTab.PROJECTS, label: t('myProjects', language), icon: FolderOpen },
+                        { id: AppTab.GALLERY, label: t('likedGallery', language), icon: Heart },
+                        { id: AppTab.PLANS, label: t('buyStars', language), icon: Sparkles },
                     ].map((item) => (
                         <button 
                             key={item.id}
@@ -259,9 +264,23 @@ const Sidebar = ({ isOpen, onClose, activeTab, onSelectTab, onNewProject, onLogo
                     ))}
                 </nav>
 
-                 <div className="border-t border-zinc-800 pt-4">
+                <div className="border-t border-zinc-800 pt-4 space-y-2">
+                    <button onClick={() => { onProfile(); onClose(); }} className="w-full flex items-center gap-3 px-4 py-3 text-zinc-300 hover:bg-zinc-900 rounded-xl transition-all">
+                        <User size={20} /> {t('profile', language)}
+                    </button>
+                    <div className="flex items-center gap-2 px-4 py-2">
+                        <Globe size={16} className="text-zinc-400" />
+                        <select 
+                            value={language} 
+                            onChange={(e) => onLanguageChange(e.target.value as Language)}
+                            className="bg-transparent text-zinc-300 text-sm border-none outline-none cursor-pointer"
+                        >
+                            <option value="en">{t('english', language)}</option>
+                            <option value="ru">{t('russian', language)}</option>
+                        </select>
+                    </div>
                     <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/10 rounded-xl transition-all">
-                        <LogIn size={20} className="rotate-180"/> Sign Out
+                        <LogIn size={20} className="rotate-180"/> {t('signOut', language)}
                     </button>
                 </div>
             </div>
@@ -269,12 +288,67 @@ const Sidebar = ({ isOpen, onClose, activeTab, onSelectTab, onNewProject, onLogo
     )
 }
 
-const GridGallery = ({ items, onLoadItem, title, emptyMsg, onLikeToggle }: { 
+// My Projects - список проектов без лайков
+const ProjectsGallery = ({ items, onLoadItem, title, emptyMsg, language }: { 
     items: any[], 
     onLoadItem: (item: any) => void, 
     title: string, 
     emptyMsg: string,
-    onLikeToggle: (id: string) => void
+    language: Language
+}) => (
+    <div className="w-full h-full p-4 overflow-y-auto pt-20 animate-in fade-in duration-500">
+        <h2 className="text-2xl font-bold mb-6">{title}</h2>
+        {items.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-[50vh] text-zinc-500 gap-4">
+                <ImageIcon size={48} className="opacity-20" />
+                <p>{emptyMsg}</p>
+            </div>
+        ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pb-20">
+                {items.map((item, index) => (
+                    <div 
+                        key={item.id} 
+                        className="rounded-xl overflow-hidden relative group border border-white/10 bg-zinc-900 cursor-pointer"
+                        onClick={() => onLoadItem(item)}
+                    >
+                        <div className="aspect-[3/4] relative">
+                            {item.videoUrl ? (
+                                <div className="relative w-full h-full">
+                                    <video src={item.videoUrl} muted className="w-full h-full object-cover" />
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/40"><Play size={24} className="fill-white text-white"/></div>
+                                </div>
+                            ) : (
+                                <img 
+                                    src={item.restoredUrl || item.originalUrl} 
+                                    alt={item.name || `${t('restoration', language)} ${items.length - index}`} 
+                                    className="w-full h-full object-cover" 
+                                    onError={(e) => {
+                                        if (e.currentTarget.src !== item.originalUrl) {
+                                            e.currentTarget.src = item.originalUrl;
+                                        }
+                                    }} 
+                                />
+                            )}
+                        </div>
+                        <div className="p-3 bg-zinc-900">
+                            <div className="text-sm font-semibold text-white mb-1">{item.name || `${t('restoration', language)} ${items.length - index}`}</div>
+                            <div className="text-xs text-zinc-400">{new Date(item.createdAt).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'en-US')}</div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        )}
+    </div>
+)
+
+// Liked Gallery - отдельные фото/видео
+const LikedMediaGallery = ({ items, onLoadItem, title, emptyMsg, language, onDownload }: { 
+    items: any[], 
+    onLoadItem: (item: any) => void, 
+    title: string, 
+    emptyMsg: string,
+    language: Language,
+    onDownload: (url: string, type: 'image' | 'video') => void
 }) => (
     <div className="w-full h-full p-4 overflow-y-auto pt-20 animate-in fade-in duration-500">
         <h2 className="text-2xl font-bold mb-6">{title}</h2>
@@ -291,32 +365,30 @@ const GridGallery = ({ items, onLoadItem, title, emptyMsg, onLikeToggle }: {
                         className="aspect-[3/4] rounded-xl overflow-hidden relative group border border-white/10 bg-zinc-900"
                     >
                         <div onClick={() => onLoadItem(item)} className="w-full h-full cursor-pointer">
-                            {item.videoUrl ? (
+                            {item.type === 'video' ? (
                                 <div className="relative w-full h-full">
-                                    <video src={item.videoUrl} muted className="w-full h-full object-cover" />
+                                    <video src={item.url} muted className="w-full h-full object-cover" />
                                     <div className="absolute inset-0 flex items-center justify-center bg-black/40"><Play size={24} className="fill-white text-white"/></div>
                                 </div>
                             ) : (
-                                <img src={item.restoredUrl || item.originalUrl} alt="Saved" className="w-full h-full object-cover" onError={(e) => {
-                                    // Fallback на оригинальное изображение если восстановленное не загрузилось
-                                    if (e.currentTarget.src !== item.originalUrl) {
-                                        e.currentTarget.src = item.originalUrl;
-                                    }
-                                }} />
+                                <img src={item.url} alt="Liked" className="w-full h-full object-cover" />
                             )}
                         </div>
                         
                         <div className="absolute top-2 right-2">
                             <button 
-                                onClick={(e) => { e.stopPropagation(); onLikeToggle(item.id); }}
-                                className={`p-2 rounded-full backdrop-blur-sm ${item.isLiked ? 'bg-red-500 text-white' : 'bg-black/50 text-white/70'}`}
+                                onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    onDownload(item.url, item.type === 'video' ? 'video' : 'image');
+                                }}
+                                className="p-2 rounded-full backdrop-blur-sm bg-black/60 text-white hover:bg-black/80 transition-colors"
                             >
-                                <Heart size={14} fill={item.isLiked ? "currentColor" : "none"} />
+                                <Download size={14} />
                             </button>
                         </div>
 
                         <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black to-transparent p-3 pt-6 pointer-events-none">
-                             <div className="text-[10px] text-zinc-300 font-medium opacity-80">{new Date(item.createdAt).toLocaleDateString()}</div>
+                             <div className="text-[10px] text-zinc-300 font-medium opacity-80">{new Date(item.createdAt).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'en-US')}</div>
                         </div>
                     </div>
                 ))}
@@ -325,28 +397,74 @@ const GridGallery = ({ items, onLoadItem, title, emptyMsg, onLikeToggle }: {
     </div>
 )
 
-const PlansView = ({ onBuy }: { onBuy: (amount: number) => void }) => (
+const ProfileView = ({ email, credits, language, onLanguageChange, onClose }: { 
+    email: string, 
+    credits: number, 
+    language: Language,
+    onLanguageChange: (lang: Language) => void,
+    onClose: () => void
+}) => (
+    <div className="w-full h-full flex flex-col items-center justify-center p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="w-full max-w-md bg-zinc-900/50 border border-zinc-800 rounded-3xl p-8 space-y-6">
+            <div className="flex items-center justify-between mb-6">
+                <h2 className="text-3xl font-bold">{t('profile', language)}</h2>
+                <button onClick={onClose} className="p-2 hover:bg-zinc-800 rounded-full transition-colors">
+                    <X size={20} className="text-zinc-400" />
+                </button>
+            </div>
+            
+            <div className="space-y-4">
+                <div>
+                    <label className="text-xs font-bold text-zinc-500 uppercase mb-1 block">{t('email', language)}</label>
+                    <div className="bg-black/50 border border-zinc-700 rounded-xl px-4 py-3 text-white">{email}</div>
+                </div>
+                
+                <div>
+                    <label className="text-xs font-bold text-zinc-500 uppercase mb-1 block">{t('stars', language)}</label>
+                    <div className="bg-black/50 border border-zinc-700 rounded-xl px-4 py-3 text-white flex items-center gap-2">
+                        <Sparkles size={16} className="text-yellow-400 fill-yellow-400" />
+                        <span className="font-bold">{credits}</span>
+                    </div>
+                </div>
+                
+                <div>
+                    <label className="text-xs font-bold text-zinc-500 uppercase mb-1 block">{t('language', language)}</label>
+                    <select 
+                        value={language} 
+                        onChange={(e) => onLanguageChange(e.target.value as Language)}
+                        className="w-full bg-black/50 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-white transition-colors"
+                    >
+                        <option value="en">{t('english', language)}</option>
+                        <option value="ru">{t('russian', language)}</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+);
+
+const PlansView = ({ onBuy, language }: { onBuy: (amount: number) => void, language: Language }) => (
     <div className="w-full h-full flex flex-col items-center justify-center p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold mb-2">Get More Stars</h2>
-            <p className="text-zinc-400">Generate high-quality videos and restorations.</p>
+            <h2 className="text-3xl font-bold mb-2">{t('getMoreStars', language)}</h2>
+            <p className="text-zinc-400">{t('generateHighQuality', language)}</p>
         </div>
         
         <div className="w-full max-w-sm space-y-3">
             {[
-                { id: 'free', price: 'Free', stars: 3, label: 'Starter', desc: 'Try it out' },
-                { id: 'mid', price: '$9.99', stars: 20, label: 'Creator', desc: 'Best for hobbyists' },
-                { id: 'pro', price: '$25.99', stars: 50, label: 'Pro', desc: 'Heavy usage' },
+                { id: 'free', price: 'Free', stars: 3, label: t('starter', language), desc: t('tryItOut', language) },
+                { id: 'mid', price: '$9.99', stars: 20, label: t('creator', language), desc: t('bestForHobbyists', language) },
+                { id: 'pro', price: '$25.99', stars: 50, label: t('pro', language), desc: t('heavyUsage', language) },
             ].map((plan) => (
             <div key={plan.id} className="group relative p-4 rounded-2xl border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-900 hover:border-zinc-600 transition-all flex justify-between items-center overflow-hidden cursor-pointer"
                  onClick={() => onBuy(plan.stars)}>
                 <div className="relative z-10">
                     <div className="flex items-center gap-2 mb-1">
                          <span className="font-bold text-white text-lg">{plan.label}</span>
-                         {plan.id === 'mid' && <span className="text-[10px] bg-purple-500 text-white px-2 py-0.5 rounded-full font-bold">POPULAR</span>}
+                         {plan.id === 'mid' && <span className="text-[10px] bg-purple-500 text-white px-2 py-0.5 rounded-full font-bold">{t('popular', language)}</span>}
                     </div>
                     <div className="flex items-center gap-1 text-yellow-400 font-bold">
-                        <Sparkles size={14} fill="currentColor"/> {plan.stars} Stars
+                        <Sparkles size={14} fill="currentColor"/> {plan.stars} {t('stars', language)}
                     </div>
                 </div>
                 <div className="relative z-10 flex flex-col items-end">
@@ -367,6 +485,12 @@ export default function App() {
   // Auth State
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   
+  // Language State
+  const [language, setLanguage] = useState<Language>(() => {
+    const saved = localStorage.getItem('language') as Language;
+    return saved || detectLanguage();
+  });
+  
   // Navigation & State
   const [activeTab, setActiveTab] = useState<AppTab>(AppTab.HOME);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -377,6 +501,8 @@ export default function App() {
   // Data State
   const [credits, setCredits] = useState(0); 
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string>('');
+  const [likedMedia, setLikedMedia] = useState<any[]>([]);
 
   const [originalImage, setOriginalImage] = useState<string | null>(null);
   const [croppedImage, setCroppedImage] = useState<string | null>(null);
@@ -428,13 +554,39 @@ export default function App() {
       try {
         const p = await API.getProfile(token);
         setCredits(p.credits);
+        setUserEmail(p.email);
+        // Загружаем язык с сервера, если есть
+        if (p.language) {
+          setLanguage(p.language);
+          localStorage.setItem('language', p.language);
+        } else {
+          // Если языка нет на сервере, сохраняем текущий
+          const currentLang = language || detectLanguage();
+          try {
+            await API.updateLanguage(token, currentLang);
+          } catch (e) {
+            console.error('Не удалось сохранить язык на сервере:', e);
+          }
+        }
       } catch(e) {}
+  };
+
+  const loadLikedMedia = async (authToken: string) => {
+      try {
+          const media = await API.getLikedMedia(authToken);
+          setLikedMedia(media);
+      } catch (e) {
+          console.error(e);
+      }
   };
 
   useEffect(() => {
       if (token) {
           refreshProfile();
           loadProjects(token);
+          if (activeTab === AppTab.GALLERY) {
+              loadLikedMedia(token);
+          }
       }
   }, [token, activeTab]);
 
@@ -443,6 +595,10 @@ export default function App() {
   const triggerCreditError = () => {
       setHighlightCredits(true);
       setTimeout(() => setHighlightCredits(false), 800);
+      // Переход на экран пополнения при нехватке звезд
+      setTimeout(() => {
+          setActiveTab(AppTab.PLANS);
+      }, 1000);
   };
 
   const handleBuyStars = (amount: number) => {
@@ -638,7 +794,7 @@ export default function App() {
                         <div className={`${thumbClass} border-zinc-700 bg-black`}>
                             {originalImage && <img src={originalImage} className="w-full h-full object-cover opacity-60 group-hover:opacity-100" alt="Original" />}
                         </div>
-                        <div className="mt-1 text-[9px] font-bold text-zinc-500 uppercase tracking-widest bg-black/50 px-2 rounded-full backdrop-blur-sm">Original</div>
+                        <div className="mt-1 text-[9px] font-bold text-zinc-500 uppercase tracking-widest bg-black/50 px-2 rounded-full backdrop-blur-sm">{t('original', language)}</div>
                     </div>
                 )}
                 {/* Secondary Top (Photo from Video) - Shown ONLY when in Video Mode */}
@@ -647,7 +803,7 @@ export default function App() {
                         <div className={`${thumbClass} w-10 h-10 border-zinc-700 bg-zinc-900`}>
                             {restoredImage && <img src={restoredImage} className="w-full h-full object-cover opacity-60 group-hover:opacity-100" alt="Photo" />}
                         </div>
-                        <div className="mt-1 text-[9px] font-bold text-zinc-300 uppercase tracking-widest bg-black/50 px-2 rounded-full backdrop-blur-sm">Editor</div>
+                        <div className="mt-1 text-[9px] font-bold text-zinc-300 uppercase tracking-widest bg-black/50 px-2 rounded-full backdrop-blur-sm">{t('editor', language)}</div>
                     </div>
                 )}
             </div>
@@ -661,7 +817,7 @@ export default function App() {
                              {isRestoring ? <div className="w-full h-full flex items-center justify-center"><Loader2 className="animate-spin text-green-500"/></div> : 
                              <img src={restoredImage!} className="w-full h-full object-cover opacity-80 group-hover:opacity-100" />}
                          </div>
-                         <div className="mt-1 text-[9px] font-bold text-green-400 uppercase tracking-widest bg-black/50 px-2 rounded-full backdrop-blur-sm">Result</div>
+                         <div className="mt-1 text-[9px] font-bold text-green-400 uppercase tracking-widest bg-black/50 px-2 rounded-full backdrop-blur-sm">{t('result', language)}</div>
                      </div>
                  )}
                  {/* Show Video Bubble if in Restored Mode */}
@@ -671,7 +827,7 @@ export default function App() {
                              {isVideoLoading ? <div className="w-full h-full flex items-center justify-center"><Loader2 className="animate-spin text-purple-500"/></div> : 
                              <div className="w-full h-full bg-black flex items-center justify-center opacity-80 group-hover:opacity-100"><Play size={20} className="text-purple-400 fill-purple-400"/></div>}
                          </div>
-                         <div className="mt-1 text-[9px] font-bold text-purple-400 uppercase tracking-widest bg-black/50 px-2 rounded-full backdrop-blur-sm">Video</div>
+                         <div className="mt-1 text-[9px] font-bold text-purple-400 uppercase tracking-widest bg-black/50 px-2 rounded-full backdrop-blur-sm">{t('video', language)}</div>
                      </div>
                  )}
             </div>
@@ -685,8 +841,15 @@ export default function App() {
           return (
             <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-8 animate-in zoom-in duration-500">
                 <div className="space-y-2">
-                    <h2 className="text-4xl font-bold tracking-tight text-white">Restore<br/>Memories</h2>
-                    <p className="text-zinc-400 text-lg">AI-powered vintage photo enhancement</p>
+                    <h2 className="text-4xl font-bold tracking-tight text-white">
+                        {t('restoreMemories', language).split('\n').map((line, i, arr) => (
+                            <React.Fragment key={i}>
+                                {line}
+                                {i < arr.length - 1 && <br />}
+                            </React.Fragment>
+                        ))}
+                    </h2>
+                    <p className="text-zinc-400 text-lg">{t('aiPoweredEnhancement', language)}</p>
                 </div>
                 <div 
                 onClick={() => fileInputRef.current?.click()}
@@ -695,7 +858,7 @@ export default function App() {
                 <div className="p-5 bg-zinc-800 rounded-full group-hover:scale-110 transition-transform shadow-xl">
                     <Upload size={32} className="text-zinc-300" />
                 </div>
-                <span className="text-zinc-500 font-medium">Tap to Upload</span>
+                <span className="text-zinc-500 font-medium">{t('tapToUpload', language)}</span>
                 </div>
                 <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleFileChange}/>
             </div>
@@ -714,7 +877,7 @@ export default function App() {
                         <Scissors size={16} />
                         <input type="range" value={zoom} min={1} max={3} step={0.1} onChange={(e) => setZoom(Number(e.target.value))} className="flex-1 h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer"/>
                     </div>
-                    <Button onClick={handleCropConfirm}>Crop Image</Button>
+                    <Button onClick={handleCropConfirm}>{t('cropImage', language)}</Button>
                 </div>
             </div>
         )
@@ -731,7 +894,7 @@ export default function App() {
                     </div>
                 </div>
                 <Button className="w-full max-w-sm shrink-0" onClick={handleRestore}>
-                    <Wand2 size={20} className="animate-pulse" /> Restore (1 Star)
+                    <Wand2 size={20} className="animate-pulse" /> {t('restoreStars', language)}
                 </Button>
             </div>
           )
@@ -744,11 +907,10 @@ export default function App() {
           if (viewMode === ViewMode.ORIGINAL) {
               return (
                 <div className="flex-1 flex flex-col items-center justify-center p-6 animate-in fade-in duration-300">
-                    <div className="relative flex-1 w-full rounded-3xl overflow-hidden border border-zinc-700 shadow-2xl bg-black">
-                        {originalImage && <img src={originalImage} className="w-full h-full object-contain opacity-80" alt="Original"/>}
-                        <div className="absolute top-4 left-4 bg-black/60 backdrop-blur px-3 py-1 rounded-full text-xs font-bold border border-zinc-700">ORIGINAL</div>
+                    <div className="relative flex-1 w-full max-w-4xl rounded-3xl overflow-hidden border border-zinc-700 shadow-2xl bg-black">
+                        {originalImage && <img src={originalImage} className="w-full h-full object-contain" alt={t('original', language)}/>}
+                        <div className="absolute top-4 left-4 bg-black/60 backdrop-blur px-3 py-1 rounded-full text-xs font-bold border border-zinc-700">{t('original', language).toUpperCase()}</div>
                     </div>
-                    <div className="h-20 shrink-0"></div>
                 </div>
               );
           }
@@ -780,9 +942,12 @@ export default function App() {
                             <button onClick={() => toggleLike()} className={`p-3 rounded-full backdrop-blur-md shadow-lg border border-white/10 transition-colors ${isLiked ? 'bg-red-500 text-white' : 'bg-black/50 text-white hover:bg-black/70'}`}>
                                 <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
                             </button>
-                            <a href={restoredImage!} download={`restored_${Date.now()}`} className="p-3 bg-black/50 backdrop-blur-md rounded-full text-white hover:bg-black/70 border border-white/10 shadow-lg">
+                            <button 
+                                onClick={() => downloadFile(restoredImage!, `restored_${Date.now()}.jpg`, 'image')}
+                                className="p-3 bg-black/50 backdrop-blur-md rounded-full text-white hover:bg-black/70 border border-white/10 shadow-lg transition-transform active:scale-95"
+                            >
                                 <Download size={20} />
-                            </a>
+                            </button>
                         </div>
                     </div>
 
@@ -791,12 +956,12 @@ export default function App() {
                         <div className="max-w-md mx-auto">
                             <div className="flex items-center gap-2 mb-3">
                                 <Video size={16} className="text-purple-400" />
-                                <h3 className="font-bold text-xs uppercase tracking-wide text-zinc-400">Generate Animation</h3>
+                                <h3 className="font-bold text-xs uppercase tracking-wide text-zinc-400">{t('generateAnimation', language)}</h3>
                             </div>
 
                             {isVideoLoading ? (
                                 <div className="h-12 flex items-center justify-center bg-zinc-900 rounded-xl text-zinc-400 gap-3 text-sm border border-zinc-800">
-                                    <Loader2 size={16} className="animate-spin" /> Generating in background...
+                                    <Loader2 size={16} className="animate-spin" /> {t('generatingInBackground', language)}
                                 </div>
                             ) : (
                                 <div className="space-y-3">
@@ -820,7 +985,7 @@ export default function App() {
                                                 })}
                                             </div>
                                     ) : (
-                                        <div className="h-8 flex items-center justify-center text-xs text-zinc-600 italic">Reading image context...</div>
+                                        <div className="h-8 flex items-center justify-center text-xs text-zinc-600 italic">{t('readingImageContext', language)}</div>
                                     )}
 
                                     <Button 
@@ -829,7 +994,7 @@ export default function App() {
                                             onClick={handleGenerateVideo}
                                             className="w-full text-sm"
                                     >
-                                        Generate Video (-{selectedPromptIndices.length * 3} Stars)
+                                        {t('generateVideoStars', language, { count: selectedPromptIndices.length * 3 })}
                                     </Button>
                                 </div>
                             )}
@@ -851,8 +1016,8 @@ export default function App() {
                         <div className="absolute inset-0 border-4 border-purple-500 rounded-full border-t-transparent animate-spin"></div>
                         <Video size={32} className="absolute inset-0 m-auto text-purple-500 animate-pulse" />
                         </div>
-                        <h3 className="text-xl font-bold">Generating Video...</h3>
-                        <p className="text-zinc-500 text-sm">Please wait ~10-15 seconds</p>
+                        <h3 className="text-xl font-bold">{t('generatingVideo', language)}</h3>
+                        <p className="text-zinc-500 text-sm">{t('pleaseWait', language)}</p>
                     </div>
                  )
              }
@@ -863,9 +1028,12 @@ export default function App() {
                          {generatedVideo && <video src={generatedVideo} autoPlay loop muted playsInline className="w-full h-full object-contain" />}
                          
                          <div className="absolute top-20 right-4 flex flex-col gap-3 z-50">
-                            <a href={generatedVideo!} download={`video_${Date.now()}.mp4`} className="p-3 bg-black/60 backdrop-blur-md rounded-full text-white hover:bg-black/80 border border-white/10 shadow-xl transition-transform active:scale-95">
+                            <button 
+                                onClick={() => downloadFile(generatedVideo!, `video_${Date.now()}.mp4`, 'video')}
+                                className="p-3 bg-black/60 backdrop-blur-md rounded-full text-white hover:bg-black/80 border border-white/10 shadow-xl transition-transform active:scale-95"
+                            >
                                 <Download size={20} />
-                            </a>
+                            </button>
                             <button onClick={() => toggleLike()} className={`p-3 rounded-full backdrop-blur-md shadow-xl border border-white/10 transition-colors ${isLiked ? 'bg-red-500 text-white' : 'bg-black/60 text-white hover:bg-black/80'}`}>
                                 <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
                             </button>
@@ -874,7 +1042,7 @@ export default function App() {
                      
                      <div className="shrink-0 bg-zinc-950 border-t border-zinc-800 p-4 pb-8 z-40 flex justify-center">
                         <Button variant="secondary" onClick={() => setViewMode(ViewMode.RESTORED)} className="w-full max-w-sm">
-                            <ArrowLeft size={16}/> Back to Editor
+                            <ArrowLeft size={16}/> {t('backToEditor', language)}
                         </Button>
                      </div>
                 </div>
@@ -891,7 +1059,7 @@ export default function App() {
         <div className="h-screen w-screen bg-zinc-950 text-white relative overflow-hidden flex flex-col">
             <div className="noise-bg" />
             <div className="noise-overlay" />
-            <AuthScreen onLogin={handleLogin} />
+            <AuthScreen onLogin={handleLogin} language={language} />
         </div>
       )
   }
@@ -920,6 +1088,20 @@ export default function App() {
         }}
         onNewProject={startNewProject}
         onLogout={handleLogout}
+        onProfile={() => setActiveTab(AppTab.PROFILE as any)}
+        language={language}
+        onLanguageChange={async (lang) => {
+            setLanguage(lang);
+            localStorage.setItem('language', lang);
+            // Сохраняем язык на сервере
+            if (token) {
+                try {
+                    await API.updateLanguage(token, lang);
+                } catch (e) {
+                    console.error('Не удалось сохранить язык на сервере:', e);
+                }
+            }
+        }}
       />
 
       <main className="flex-1 flex flex-col overflow-hidden relative">
@@ -929,22 +1111,48 @@ export default function App() {
                 {renderContent()}
             </>
         ) : activeTab === AppTab.PLANS ? (
-            <PlansView onBuy={handleBuyStars} />
+            <PlansView onBuy={handleBuyStars} language={language} />
         ) : activeTab === AppTab.GALLERY ? (
-            <GridGallery 
-                items={projects.filter(p => p.isLiked)} 
-                onLoadItem={loadFromGalleryOrProject} 
-                title="Liked Gallery" 
-                emptyMsg="No liked photos yet." 
-                onLikeToggle={toggleLike}
+            <LikedMediaGallery 
+                items={likedMedia} 
+                onLoadItem={(item) => {
+                    // Загружаем проект по projectId
+                    const project = projects.find(p => p.id === item.projectId);
+                    if (project) {
+                        loadFromGalleryOrProject(project);
+                    }
+                }} 
+                title={t('likedGallery', language)} 
+                emptyMsg={t('noLikedPhotos', language)}
+                language={language}
+                onDownload={(url, type) => downloadFile(url, `${type}_${Date.now()}.${type === 'video' ? 'mp4' : 'jpg'}`, type)}
+            />
+        ) : activeTab === (AppTab.PROFILE as any) ? (
+            <ProfileView 
+                email={userEmail} 
+                credits={credits} 
+                language={language}
+                onLanguageChange={async (lang) => {
+                    setLanguage(lang);
+                    localStorage.setItem('language', lang);
+                    // Сохраняем язык на сервере
+                    if (token) {
+                        try {
+                            await API.updateLanguage(token, lang);
+                        } catch (e) {
+                            console.error('Не удалось сохранить язык на сервере:', e);
+                        }
+                    }
+                }}
+                onClose={() => setActiveTab(AppTab.HOME)}
             />
         ) : (
-            <GridGallery 
+            <ProjectsGallery 
                 items={projects} 
                 onLoadItem={loadFromGalleryOrProject} 
-                title="My Projects" 
-                emptyMsg="No restorations yet." 
-                onLikeToggle={toggleLike}
+                title={t('myProjects', language)} 
+                emptyMsg={t('noRestorations', language)}
+                language={language}
             />
         )}
       </main>

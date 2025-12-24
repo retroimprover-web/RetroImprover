@@ -62,20 +62,8 @@ export async function restoreImage(imagePath: string): Promise<string> {
     });
     
     // Системная инструкция для восстановления
-    const restorePrompt = `Act as a professional photo restorer. Restore this vintage or damaged photo to look like a modern high-quality photo. 
-
-Remove all defects:
-- Remove noise, grain, and artifacts
-- Remove blur and restore sharpness
-- Remove scratches, dust, and physical damage
-- Remove stains and discoloration
-- Remove fading and restore color vibrancy
-
-Enhance quality:
-- Improve sharpness and clarity throughout the image
-- Enhance contrast and brightness appropriately
-- Fix any color shifts and restore natural colors
-- Maintain the original character and authenticity
+    const restorePrompt = `Restore and enhance this old photo to modern quality without changing objects and details. Remove scratches, stains, wear marks, and physical damage. Eliminate blur, noise, film grain, and scanning artifacts. Increase sharpness and clarity of details (faces, textures, fine elements). Improve contrast and dynamic range. Restore shadow depth and highlight brightness. If the photo is black and white, sepia, or has faded colors, restore and normalize color rendition naturally. Restore blurred or unclear areas using image context.
+The result should look like a professional high-quality photograph.
 
 Output ONLY the restored image without any text or description.`;
     
@@ -183,8 +171,9 @@ export async function generateAnimationPrompts(restoredImagePath: string): Promi
     // Используем Gemini 3 Flash Preview
     const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
     
-    // Промпт для генерации идей
-    const prompt = `Analyze this photo. Describe 4 cinematic camera movements or subtle character animations to bring this scene to life. Return only a JSON array of 4 short English phrases.`;
+    // Промпт для генерации идей (с учетом языка пользователя)
+    // Пока всегда на английском для промпта, но подсказки могут быть на русском
+    const prompt = `Analyze this photo. Describe 4 simple, positive, and friendly animation ideas to bring this scene to life. Each idea should describe natural, gentle movements like slight smile, blinking, small head movements, or subtle gestures. Do NOT include camera movements (zoom, pan, etc.) or negative actions. Movements should be natural, smooth, and contextually appropriate to the photo. Return only a JSON array of 4 short English phrases.`;
     
     const result = await model.generateContent([
       { text: prompt },
@@ -268,9 +257,9 @@ export async function generateVideo(imagePath: string, prompts: string[]): Promi
     console.log('📸 Размер изображения:', imageData.length, 'байт');
     console.log('📸 MIME тип:', mimeType);
     
-    // Объединяем промпты
+    // Объединяем промпты и добавляем базовый промпт
     const combinedPrompt = prompts.join(', ');
-    const fullPrompt = `Cinematic animation: ${combinedPrompt}. High quality, realistic, smooth motion.`;
+    const fullPrompt = `Animate this photo. Camera is static. Add positive emotions and friendly gestures: slight smile, blinking, small head movements. Movements should be natural and smooth. ${combinedPrompt}`;
     
     console.log('📝 Промпт для видео:', fullPrompt);
     console.log('📝 Количество промптов:', prompts.length);

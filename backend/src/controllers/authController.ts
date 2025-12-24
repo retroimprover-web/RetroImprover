@@ -116,6 +116,7 @@ export const getMe = async (req: Request, res: Response): Promise<void> => {
         id: true,
         email: true,
         credits: true,
+        language: true,
         createdAt: true,
       },
     });
@@ -144,6 +145,41 @@ export const getOAuthStatus = async (req: Request, res: Response): Promise<void>
       process.env.APPLE_PRIVATE_KEY
     ),
   });
+};
+
+// Обновление языка пользователя
+export const updateLanguage = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
+      res.status(401).json({ error: 'Неавторизован' });
+      return;
+    }
+
+    const { language } = req.body;
+
+    if (!language || !['en', 'ru'].includes(language)) {
+      res.status(400).json({ error: 'Некорректный язык. Допустимые значения: en, ru' });
+      return;
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: authReq.user.userId },
+      data: { language },
+      select: {
+        id: true,
+        email: true,
+        credits: true,
+        language: true,
+        createdAt: true,
+      },
+    });
+
+    res.json(updatedUser);
+  } catch (error) {
+    console.error('Ошибка при обновлении языка:', error);
+    res.status(500).json({ error: 'Ошибка при обновлении языка' });
+  }
 };
 
 // Callback для социальной авторизации

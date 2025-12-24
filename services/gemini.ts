@@ -99,6 +99,18 @@ export const getProfile = async (token: string) => {
   return res.json();
 };
 
+export const updateLanguage = async (token: string, language: string): Promise<void> => {
+  const res = await fetch(`${API_URL}/auth/language`, {
+    method: 'PUT',
+    headers: { 
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}` 
+    },
+    body: JSON.stringify({ language }),
+  });
+  if (!res.ok) throw new Error('Failed to update language');
+};
+
 // Проверка доступности OAuth провайдеров
 export const getOAuthStatus = async (): Promise<{ google: boolean; facebook: boolean; apple: boolean }> => {
   try {
@@ -146,6 +158,14 @@ export const toggleLikeProject = async (token: string, projectId: string): Promi
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
   });
+};
+
+export const getLikedMedia = async (token: string): Promise<any[]> => {
+  const res = await fetch(`${API_URL}/projects/liked-media`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return [];
+  return res.json();
 };
 
 // --- AI Generation Services ---

@@ -118,3 +118,4 @@ API URL: https://your-backend.up.railway.app/api
 
 Если видите `http://localhost:3000/api` - значит `VITE_API_URL` не настроен в Vercel!
 
+

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import passport from '../config/passport';
-import { register, login, getMe, socialAuthCallback, getOAuthStatus } from '../controllers/authController';
+import { register, login, getMe, socialAuthCallback, getOAuthStatus, updateLanguage } from '../controllers/authController';
 import { authenticate } from '../middleware/auth';
 
 const router = Router();
@@ -9,6 +9,7 @@ const router = Router();
 router.post('/register', register);
 router.post('/login', login);
 router.get('/me', authenticate, getMe);
+router.put('/language', authenticate, updateLanguage);
 router.get('/oauth/status', getOAuthStatus);
 
 // Социальная авторизация - Google

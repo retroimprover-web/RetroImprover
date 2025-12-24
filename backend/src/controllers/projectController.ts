@@ -38,7 +38,7 @@ export const getProjects = async (req: Request, res: Response): Promise<void> =>
     // Если путь начинается с http:// или https://, это уже R2 URL
     const isR2Url = (url: string) => url.startsWith('http://') || url.startsWith('https://');
     
-    const projectsWithUrls = projects.map((project) => {
+    const projectsWithUrls = projects.map((project, index) => {
       return {
         ...project,
         originalUrl: isR2Url(project.originalImage) 
@@ -54,6 +54,8 @@ export const getProjects = async (req: Request, res: Response): Promise<void> =>
               ? project.video
               : `${backendUrl}/uploads/${path.basename(project.video)}`)
           : null,
+        // Добавляем название проекта
+        name: `Restoration ${projects.length - index}`,
       };
     });
 
@@ -61,6 +63,74 @@ export const getProjects = async (req: Request, res: Response): Promise<void> =>
   } catch (error) {
     console.error('Ошибка при получении проектов:', error);
     res.status(500).json({ error: 'Ошибка при получении проектов' });
+  }
+};
+
+// Новый эндпоинт для получения лайкнутых медиа (отдельные фото/видео)
+export const getLikedMedia = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as AuthRequest;
+    if (!authReq.user) {
+      res.status(401).json({ error: 'Неавторизован' });
+      return;
+    }
+
+    const projects = await prisma.project.findMany({
+      where: {
+        userId: authReq.user.userId,
+        isLiked: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Получаем URL бэкенда
+    const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+    const backendUrl = process.env.BACKEND_URL || 
+      (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null) ||
+      `${protocol}://${req.get('host')}` || 
+      'http://localhost:3000';
+    
+    const isR2Url = (url: string) => url.startsWith('http://') || url.startsWith('https://');
+    
+    // Создаем массив отдельных медиа из лайкнутых проектов
+    const likedMedia: any[] = [];
+    
+    projects.forEach((project) => {
+      // Добавляем восстановленное фото, если есть
+      if (project.restoredImage) {
+        const restoredUrl = isR2Url(project.restoredImage) 
+          ? project.restoredImage 
+          : `${backendUrl}/uploads/${path.basename(project.restoredImage)}`;
+        
+        likedMedia.push({
+          id: `${project.id}-restored`,
+          type: 'image',
+          url: restoredUrl,
+          projectId: project.id,
+          createdAt: project.createdAt.toISOString(),
+        });
+      }
+      
+      // Добавляем видео, если есть
+      if (project.video) {
+        const videoUrl = isR2Url(project.video)
+          ? project.video
+          : `${backendUrl}/uploads/${path.basename(project.video)}`;
+        
+        likedMedia.push({
+          id: `${project.id}-video`,
+          type: 'video',
+          url: videoUrl,
+          projectId: project.id,
+          createdAt: project.createdAt.toISOString(),
+        });
+      }
+    });
+
+    res.json(likedMedia);
+  } catch (error) {
+    console.error('Ошибка при получении лайкнутых медиа:', error);
+    res.status(500).json({ error: 'Ошибка при получении лайкнутых медиа' });
   }
 };
 

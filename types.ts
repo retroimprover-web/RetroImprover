@@ -17,7 +17,8 @@ export enum AppTab {
   HOME = 'HOME',
   GALLERY = 'GALLERY',
   PROJECTS = 'PROJECTS',
-  PLANS = 'PLANS'
+  PLANS = 'PLANS',
+  PROFILE = 'PROFILE'
 }
 
 export interface RestoredImage {
