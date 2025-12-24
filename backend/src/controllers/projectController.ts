@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
 import { AuthRequest } from '../middleware/auth';
+import { deleteFromR2 } from '../utils/r2';
 import path from 'path';
 import fs from 'fs';
 
@@ -33,32 +34,26 @@ export const getProjects = async (req: Request, res: Response): Promise<void> =>
       `${protocol}://${req.get('host')}` || 
       'http://localhost:3000';
     
-    // Преобразуем пути в URL и проверяем существование файлов
+    // Преобразуем пути в URL
+    // Если путь начинается с http:// или https://, это уже R2 URL
+    const isR2Url = (url: string) => url.startsWith('http://') || url.startsWith('https://');
+    
     const projectsWithUrls = projects.map((project) => {
-      const originalFileName = path.basename(project.originalImage);
-      const restoredFileName = project.restoredImage ? path.basename(project.restoredImage) : null;
-      const videoFileName = project.video ? path.basename(project.video) : null;
-      
-      // Проверяем существование файлов
-      const originalExists = fs.existsSync(project.originalImage);
-      const restoredExists = project.restoredImage ? fs.existsSync(project.restoredImage) : false;
-      const videoExists = project.video ? fs.existsSync(project.video) : false;
-      
-      if (!originalExists) {
-        console.warn(`⚠️ Оригинальный файл не найден: ${project.originalImage}`);
-      }
-      if (project.restoredImage && !restoredExists) {
-        console.warn(`⚠️ Восстановленный файл не найден: ${project.restoredImage}`);
-      }
-      if (project.video && !videoExists) {
-        console.warn(`⚠️ Видео файл не найден: ${project.video}`);
-      }
-      
       return {
         ...project,
-        originalUrl: originalExists ? `${backendUrl}/uploads/${originalFileName}` : null,
-        restoredUrl: restoredExists ? `${backendUrl}/uploads/${restoredFileName}` : null,
-        videoUrl: videoExists ? `${backendUrl}/uploads/${videoFileName}` : null,
+        originalUrl: isR2Url(project.originalImage) 
+          ? project.originalImage 
+          : `${backendUrl}/uploads/${path.basename(project.originalImage)}`,
+        restoredUrl: project.restoredImage 
+          ? (isR2Url(project.restoredImage) 
+              ? project.restoredImage 
+              : `${backendUrl}/uploads/${path.basename(project.restoredImage)}`)
+          : null,
+        videoUrl: project.video
+          ? (isR2Url(project.video)
+              ? project.video
+              : `${backendUrl}/uploads/${path.basename(project.video)}`)
+          : null,
       };
     });
 
@@ -127,11 +122,34 @@ export const deleteProject = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Удаляем файлы
+    // Удаляем файлы из R2 (если это R2 URLs)
+    const isR2Url = (url: string) => url.startsWith('http://') || url.startsWith('https://');
+    
+    if (isR2Url(project.originalImage)) {
+      // Извлекаем ключ из R2 URL
+      // Формат URL: https://pub-xxx.r2.dev/originals/filename.jpg
+      const urlParts = project.originalImage.split('/');
+      const key = urlParts.slice(-2).join('/'); // 'originals/filename.jpg'
+      await deleteFromR2(key);
+    }
+    
+    if (project.restoredImage && isR2Url(project.restoredImage)) {
+      const urlParts = project.restoredImage.split('/');
+      const key = urlParts.slice(-2).join('/');
+      await deleteFromR2(key);
+    }
+    
+    if (project.video && isR2Url(project.video)) {
+      const urlParts = project.video.split('/');
+      const key = urlParts.slice(-2).join('/');
+      await deleteFromR2(key);
+    }
+
+    // Удаляем локальные файлы (если они еще существуют)
     const filesToDelete = [
-      project.originalImage,
-      project.restoredImage,
-      project.video,
+      !isR2Url(project.originalImage) ? project.originalImage : null,
+      project.restoredImage && !isR2Url(project.restoredImage) ? project.restoredImage : null,
+      project.video && !isR2Url(project.video) ? project.video : null,
     ].filter(Boolean) as string[];
 
     for (const filePath of filesToDelete) {

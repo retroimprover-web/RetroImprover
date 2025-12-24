@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../config/database';
 import { AuthRequest } from '../middleware/auth';
 import { restoreImage, generateAnimationPrompts, generateVideo as generateVideoUtil } from '../utils/gemini';
+import { uploadToR2, generateR2Key, getLocalFilePath } from '../utils/r2';
 import path from 'path';
 import fs from 'fs';
 
@@ -57,7 +58,7 @@ export const restore = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Создаем проект в БД
+    // Создаем проект в БД (пока с локальными путями)
     const project = await prisma.project.create({
       data: {
         userId: user.id,
@@ -65,6 +66,34 @@ export const restore = async (req: Request, res: Response): Promise<void> => {
         restoredImage: restoredImagePath,
       },
     });
+
+    // Загружаем файлы в R2
+    let originalR2Url: string | null = null;
+    let restoredR2Url: string | null = null;
+
+    try {
+      // Загружаем оригинальное изображение
+      const originalKey = generateR2Key(path.basename(originalImagePath), 'originals');
+      originalR2Url = await uploadToR2(originalImagePath, originalKey);
+
+      // Загружаем восстановленное изображение
+      const restoredKey = generateR2Key(path.basename(restoredImagePath), 'restored');
+      restoredR2Url = await uploadToR2(restoredImagePath, restoredKey);
+
+      // Обновляем проект с R2 URLs
+      await prisma.project.update({
+        where: { id: project.id },
+        data: {
+          originalImage: originalR2Url,
+          restoredImage: restoredR2Url,
+        },
+      });
+
+      console.log('✅ Файлы загружены в R2');
+    } catch (r2Error: any) {
+      console.error('⚠️ Ошибка при загрузке в R2, используем локальные пути:', r2Error);
+      // Если R2 не работает, продолжаем с локальными путями
+    }
 
     // Вычитаем 1 кредит
     const updatedUser = await prisma.user.update({
@@ -82,12 +111,16 @@ export const restore = async (req: Request, res: Response): Promise<void> => {
       (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null) ||
       `${protocol}://${req.get('host')}` || 
       'http://localhost:3000';
+
+    // Возвращаем URLs (R2 или локальные)
+    const finalOriginalUrl = originalR2Url || `${backendUrl}/uploads/${path.basename(project.originalImage)}`;
+    const finalRestoredUrl = restoredR2Url || `${backendUrl}/uploads/${path.basename(project.restoredImage!)}`;
     
     res.json({
       project: {
         id: project.id,
-        originalImage: `${backendUrl}/uploads/${path.basename(project.originalImage)}`,
-        restoredImage: `${backendUrl}/uploads/${path.basename(project.restoredImage!)}`,
+        originalImage: finalOriginalUrl,
+        restoredImage: finalRestoredUrl,
         video: null,
         prompts: null,
         isLiked: false,
@@ -134,10 +167,23 @@ export const generatePrompts = async (req: Request, res: Response): Promise<void
       return;
     }
 
+    // Получаем локальный путь к восстановленному изображению (скачиваем из R2, если нужно)
+    let localRestoredImagePath: string;
+    try {
+      localRestoredImagePath = await getLocalFilePath(project.restoredImage);
+    } catch (error: any) {
+      console.error('❌ Ошибка при получении файла:', error);
+      res.status(500).json({ 
+        error: 'Не удалось получить восстановленное изображение', 
+        details: error.message 
+      });
+      return;
+    }
+
     // Генерируем промпты
     let prompts: string[];
     try {
-      prompts = await generateAnimationPrompts(project.restoredImage);
+      prompts = await generateAnimationPrompts(localRestoredImagePath);
       
       if (!prompts || prompts.length < 4) {
         throw new Error('Не удалось сгенерировать 4 промпта');
@@ -216,11 +262,24 @@ export const generateVideo = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    // Получаем локальный путь к восстановленному изображению (скачиваем из R2, если нужно)
+    let localRestoredImagePath: string;
+    try {
+      localRestoredImagePath = await getLocalFilePath(project.restoredImage);
+    } catch (error: any) {
+      console.error('❌ Ошибка при получении файла:', error);
+      res.status(500).json({ 
+        error: 'Не удалось получить восстановленное изображение', 
+        details: error.message 
+      });
+      return;
+    }
+
     // Генерируем видео (это может занять 1-2 минуты)
     let videoPath: string;
     try {
       console.log('🔄 Начало генерации видео...');
-      videoPath = await generateVideoUtil(project.restoredImage, selectedPrompts);
+      videoPath = await generateVideoUtil(localRestoredImagePath, selectedPrompts);
       
       // Проверяем, что файл существует
       if (!fs.existsSync(videoPath)) {
@@ -240,13 +299,32 @@ export const generateVideo = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Сохраняем видео в проект
+    // Сохраняем видео в проект (пока с локальным путем)
     await prisma.project.update({
       where: { id: projectId },
       data: {
         video: videoPath,
       },
     });
+
+    // Загружаем видео в R2
+    let videoR2Url: string | null = null;
+    try {
+      const videoKey = generateR2Key(path.basename(videoPath), 'videos');
+      videoR2Url = await uploadToR2(videoPath, videoKey);
+
+      // Обновляем проект с R2 URL
+      await prisma.project.update({
+        where: { id: projectId },
+        data: {
+          video: videoR2Url,
+        },
+      });
+
+      console.log('✅ Видео загружено в R2');
+    } catch (r2Error: any) {
+      console.error('⚠️ Ошибка при загрузке видео в R2, используем локальный путь:', r2Error);
+    }
 
     // Вычитаем 3 кредита
     const updatedUser = await prisma.user.update({
@@ -264,9 +342,12 @@ export const generateVideo = async (req: Request, res: Response): Promise<void> 
       (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null) ||
       `${protocol}://${req.get('host')}` || 
       'http://localhost:3000';
+
+    // Возвращаем URL (R2 или локальный)
+    const finalVideoUrl = videoR2Url || `${backendUrl}/uploads/${path.basename(videoPath)}`;
     
     res.json({
-      videoUrl: `${backendUrl}/uploads/${path.basename(videoPath)}`,
+      videoUrl: finalVideoUrl,
       creditsLeft: updatedUser.credits,
     });
   } catch (error) {
