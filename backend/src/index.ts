@@ -9,7 +9,6 @@ import { errorHandler } from './middleware/errorHandler';
 import authRoutes from './routes/authRoutes';
 import projectRoutes from './routes/projectRoutes';
 import aiRoutes from './routes/aiRoutes';
-import paymentRoutes from './routes/paymentRoutes';
 import downloadRoutes from './routes/downloadRoutes';
 
 // Загружаем переменные окружения
@@ -59,7 +58,6 @@ app.use('/uploads', express.static(path.resolve(uploadDir)));
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/ai', aiRoutes);
-app.use('/api/payment', paymentRoutes);
 app.use('/api/download', downloadRoutes);
 
 // Корневой маршрут с информацией об API

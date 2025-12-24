@@ -588,30 +588,7 @@ export default function App() {
               loadLikedMedia(token);
           }
       }
-      
-      // Проверяем успешный платеж при загрузке
-      const urlParams = new URLSearchParams(window.location.search);
-      const sessionId = urlParams.get('session_id');
-      if (sessionId && token) {
-          checkPaymentSuccess(sessionId);
-          // Очищаем URL
-          window.history.replaceState({}, document.title, window.location.pathname);
-      }
   }, [token, activeTab]);
-
-  const checkPaymentSuccess = async (sessionId: string) => {
-      if (!token) return;
-      try {
-          const status = await API.checkPaymentStatus(token, sessionId);
-          if (status.paid && status.credits) {
-              setCredits(status.credits);
-              refreshProfile();
-              alert(`Платеж успешен! Получено звезд. Текущий баланс: ${status.credits}`);
-          }
-      } catch (error) {
-          console.error('Ошибка при проверке платежа:', error);
-      }
-  };
 
   // --- Logic ---
 
@@ -624,43 +601,10 @@ export default function App() {
       }, 1000);
   };
 
-  const handleBuyStars = async (planId: string, stars: number) => {
-      if (!token) {
-          alert('Необходимо войти в систему');
-          return;
-      }
-
-      try {
-          // Создаем checkout session
-          const { sessionId, url, success, credits, message } = await API.createCheckoutSession(token, planId);
-          
-          // Если план бесплатный (starter), звезды уже добавлены
-          if (success && credits !== undefined) {
-              setCredits(credits);
-              alert(message || `Получено ${stars} звезд!`);
-              refreshProfile();
-              setActiveTab(AppTab.HOME);
-              return;
-          }
-
-          // Если есть URL для Stripe Checkout, перенаправляем
-          if (url) {
-              window.location.href = url;
-          } else {
-              // Если нет URL, проверяем статус (может быть уже оплачено)
-              if (sessionId) {
-                  const status = await API.checkPaymentStatus(token, sessionId);
-                  if (status.paid) {
-                      setCredits(status.credits || credits);
-                      refreshProfile();
-                      setActiveTab(AppTab.HOME);
-                  }
-              }
-          }
-      } catch (error: any) {
-          console.error('Ошибка при создании платежа:', error);
-          alert(error.message || 'Ошибка при создании платежа');
-      }
+  const handleBuyStars = (planId: string, stars: number) => {
+      // Для MVP: можно добавить звезды вручную через базу данных
+      alert(`Для добавления ${stars} звезд обратитесь к администратору или используйте базу данных.`);
+      setActiveTab(AppTab.HOME); 
   };
 
   const startNewProject = () => {
