@@ -999,7 +999,7 @@ export default function App() {
                                 <Heart size={20} fill={isLiked ? "currentColor" : "none"} />
                             </button>
                             <button 
-                                onClick={() => downloadFile(restoredImage!, `restored_${Date.now()}.jpg`, 'image')}
+                                onClick={() => downloadFile(restoredImage!, `restored_${Date.now()}.jpg`, 'image', token || undefined)}
                                 className="p-3 bg-black/50 backdrop-blur-md rounded-full text-white hover:bg-black/70 border border-white/10 shadow-lg transition-transform active:scale-95"
                             >
                                 <Download size={20} />
@@ -1085,7 +1085,7 @@ export default function App() {
                          
                          <div className="absolute top-20 right-4 flex flex-col gap-3 z-50">
                             <button 
-                                onClick={() => downloadFile(generatedVideo!, `video_${Date.now()}.mp4`, 'video')}
+                                onClick={() => downloadFile(generatedVideo!, `video_${Date.now()}.mp4`, 'video', token || undefined)}
                                 className="p-3 bg-black/60 backdrop-blur-md rounded-full text-white hover:bg-black/80 border border-white/10 shadow-xl transition-transform active:scale-95"
                             >
                                 <Download size={20} />
@@ -1181,7 +1181,7 @@ export default function App() {
                 title={t('likedGallery', language)} 
                 emptyMsg={t('noLikedPhotos', language)}
                 language={language}
-                onDownload={(url, type) => downloadFile(url, `${type}_${Date.now()}.${type === 'video' ? 'mp4' : 'jpg'}`, type)}
+                                onDownload={(url, type) => downloadFile(url, `${type}_${Date.now()}.${type === 'video' ? 'mp4' : 'jpg'}`, type, token || undefined)}
             />
         ) : activeTab === (AppTab.PROFILE as any) ? (
             <ProfileView 

@@ -1,125 +1,115 @@
 /**
- * Утилита для скачивания файлов на мобильных устройствах (особенно iOS)
+ * Утилита для стабильного скачивания файлов на всех устройствах
+ * Использует серверный эндпоинт для принудительного скачивания
  */
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = API_BASE.endsWith('/api') ? API_BASE : `${API_BASE}/api`;
 
 /**
- * Скачивает файл на мобильном устройстве
- * Для iOS использует специальный подход через создание временной ссылки
+ * Скачивает файл через серверный эндпоинт для надежного скачивания на всех устройствах
+ * @param url - URL файла для скачивания
+ * @param filename - Имя файла для сохранения
+ * @param type - Тип файла ('image' или 'video')
+ * @param token - JWT токен для авторизации
  */
-export async function downloadFile(url: string, filename: string, type: 'image' | 'video' = 'image'): Promise<void> {
+export async function downloadFile(
+  url: string, 
+  filename: string, 
+  type: 'image' | 'video' = 'image',
+  token?: string
+): Promise<void> {
   try {
-    // Проверяем, мобильное ли устройство
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    // Если есть токен, используем серверный эндпоинт (самый надежный способ)
+    if (token) {
+      const downloadUrl = `${API_URL}/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`;
+      
+      // Скачиваем через fetch с авторизацией
+      const response = await fetch(downloadUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
 
-    if (isMobile && isIOS) {
-      // Для iOS используем специальный подход
-      await downloadFileIOS(url, filename, type);
-    } else if (isMobile) {
-      // Для Android используем стандартный подход
-      await downloadFileAndroid(url, filename, type);
-    } else {
-      // Для десктопа используем стандартный подход
-      await downloadFileDesktop(url, filename);
-    }
-  } catch (error) {
-    console.error('Ошибка при скачивании файла:', error);
-    // Fallback на стандартный метод
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.target = '_blank';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }
-}
+      if (!response.ok) {
+        throw new Error('Не удалось скачать файл через сервер');
+      }
 
-/**
- * Скачивание для iOS
- */
-async function downloadFileIOS(url: string, filename: string, type: 'image' | 'video'): Promise<void> {
-  try {
-    // Скачиваем файл как blob
-    const response = await fetch(url);
-    const blob = await response.blob();
-    
-    // Создаем URL для blob
-    const blobUrl = URL.createObjectURL(blob);
-    
-    // Для iOS нужно открыть в новой вкладке, чтобы пользователь мог сохранить
-    const link = document.createElement('a');
-    link.href = blobUrl;
-    link.download = filename;
-    link.target = '_blank';
-    
-    // Добавляем атрибуты для iOS
-    link.setAttribute('download', filename);
-    
-    // Для видео на iOS лучше открыть в новой вкладке
-    if (type === 'video') {
-      window.open(blobUrl, '_blank');
-      // Освобождаем URL через некоторое время
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      // Получаем blob
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+
+      // Создаем ссылку для скачивания
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      link.style.display = 'none';
+
+      // Добавляем в DOM (важно для iOS)
+      document.body.appendChild(link);
+
+      // Триггерим клик
+      link.click();
+
+      // Удаляем ссылку и освобождаем память
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(blobUrl);
+      }, 100);
+
       return;
     }
+
+    // Fallback: прямое скачивание без сервера (если нет токена)
+    await downloadFileDirect(url, filename, type);
     
-    // Для изображений пробуем скачать
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    // Освобождаем URL
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-    
-    // На iOS пользователю нужно будет нажать и удерживать, чтобы сохранить
-    // Показываем подсказку (опционально)
   } catch (error) {
-    console.error('Ошибка при скачивании на iOS:', error);
-    // Fallback: открываем в новой вкладке
-    window.open(url, '_blank');
+    console.error('Ошибка при скачивании файла:', error);
+    
+    // Последний fallback: открываем в новой вкладке
+    try {
+      await downloadFileDirect(url, filename, type);
+    } catch (fallbackError) {
+      console.error('Fallback скачивание также не удалось:', fallbackError);
+      // Открываем в новой вкладке как последний вариант
+      window.open(url, '_blank');
+    }
   }
 }
 
 /**
- * Скачивание для Android
+ * Прямое скачивание файла (fallback метод)
  */
-async function downloadFileAndroid(url: string, filename: string, type: 'image' | 'video'): Promise<void> {
-  try {
-    const response = await fetch(url);
-    const blob = await response.blob();
-    const blobUrl = URL.createObjectURL(blob);
-    
-    const link = document.createElement('a');
-    link.href = blobUrl;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-  } catch (error) {
-    console.error('Ошибка при скачивании на Android:', error);
-    // Fallback
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.target = '_blank';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }
-}
+async function downloadFileDirect(url: string, filename: string, type: 'image' | 'video'): Promise<void> {
+  // Скачиваем файл через fetch
+  const response = await fetch(url, {
+    mode: 'cors',
+  });
 
-/**
- * Скачивание для десктопа
- */
-async function downloadFileDesktop(url: string, filename: string): Promise<void> {
+  if (!response.ok) {
+    throw new Error('Не удалось загрузить файл');
+  }
+
+  const blob = await response.blob();
+  const blobUrl = URL.createObjectURL(blob);
+
+  // Создаем ссылку для скачивания
   const link = document.createElement('a');
-  link.href = url;
+  link.href = blobUrl;
   link.download = filename;
+  link.style.display = 'none';
+
+  // Добавляем в DOM (критично для мобильных устройств)
   document.body.appendChild(link);
+
+  // Триггерим клик
   link.click();
-  document.body.removeChild(link);
+
+  // Удаляем ссылку и освобождаем память
+  setTimeout(() => {
+    document.body.removeChild(link);
+    URL.revokeObjectURL(blobUrl);
+  }, 100);
 }
 
