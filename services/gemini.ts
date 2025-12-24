@@ -111,6 +111,37 @@ export const updateLanguage = async (token: string, language: string): Promise<v
   if (!res.ok) throw new Error('Failed to update language');
 };
 
+// --- Payment Services ---
+
+export const createCheckoutSession = async (token: string, planId: string): Promise<{ sessionId?: string, url?: string | null, success?: boolean, credits?: number, message?: string }> => {
+  const res = await fetch(`${API_URL}/payment/checkout`, {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}` 
+    },
+    body: JSON.stringify({ planId }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to create checkout session');
+  }
+  return res.json();
+};
+
+export const checkPaymentStatus = async (token: string, sessionId: string): Promise<{ success: boolean, paid: boolean, credits?: number }> => {
+  const res = await fetch(`${API_URL}/payment/status?sessionId=${sessionId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to check payment status');
+  }
+  return res.json();
+};
+
 // Проверка доступности OAuth провайдеров
 export const getOAuthStatus = async (): Promise<{ google: boolean; facebook: boolean; apple: boolean }> => {
   try {

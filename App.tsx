@@ -443,7 +443,7 @@ const ProfileView = ({ email, credits, language, onLanguageChange, onClose }: {
     </div>
 );
 
-const PlansView = ({ onBuy, language }: { onBuy: (amount: number) => void, language: Language }) => (
+const PlansView = ({ onBuy, language }: { onBuy: (planId: string, stars: number) => void, language: Language }) => (
     <div className="w-full h-full flex flex-col items-center justify-center p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="text-center mb-8">
             <h2 className="text-3xl font-bold mb-2">{t('getMoreStars', language)}</h2>
@@ -452,12 +452,12 @@ const PlansView = ({ onBuy, language }: { onBuy: (amount: number) => void, langu
         
         <div className="w-full max-w-sm space-y-3">
             {[
-                { id: 'free', price: 'Free', stars: 3, label: t('starter', language), desc: t('tryItOut', language) },
-                { id: 'mid', price: '$9.99', stars: 20, label: t('creator', language), desc: t('bestForHobbyists', language) },
+                { id: 'starter', price: 'Free', stars: 3, label: t('starter', language), desc: t('tryItOut', language) },
+                { id: 'creator', price: '$9.99', stars: 20, label: t('creator', language), desc: t('bestForHobbyists', language) },
                 { id: 'pro', price: '$25.99', stars: 50, label: t('pro', language), desc: t('heavyUsage', language) },
             ].map((plan) => (
             <div key={plan.id} className="group relative p-4 rounded-2xl border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-900 hover:border-zinc-600 transition-all flex justify-between items-center overflow-hidden cursor-pointer"
-                 onClick={() => onBuy(plan.stars)}>
+                 onClick={() => onBuy(plan.id, plan.stars)}>
                 <div className="relative z-10">
                     <div className="flex items-center gap-2 mb-1">
                          <span className="font-bold text-white text-lg">{plan.label}</span>
@@ -588,7 +588,30 @@ export default function App() {
               loadLikedMedia(token);
           }
       }
+      
+      // Проверяем успешный платеж при загрузке
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionId = urlParams.get('session_id');
+      if (sessionId && token) {
+          checkPaymentSuccess(sessionId);
+          // Очищаем URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+      }
   }, [token, activeTab]);
+
+  const checkPaymentSuccess = async (sessionId: string) => {
+      if (!token) return;
+      try {
+          const status = await API.checkPaymentStatus(token, sessionId);
+          if (status.paid && status.credits) {
+              setCredits(status.credits);
+              refreshProfile();
+              alert(`Платеж успешен! Получено звезд. Текущий баланс: ${status.credits}`);
+          }
+      } catch (error) {
+          console.error('Ошибка при проверке платежа:', error);
+      }
+  };
 
   // --- Logic ---
 
@@ -601,10 +624,43 @@ export default function App() {
       }, 1000);
   };
 
-  const handleBuyStars = (amount: number) => {
-      // In a real app, this would call a payment API
-      alert(`For MVP Demo: Please use Database to add credits manually or ask Admin.`);
-      setActiveTab(AppTab.HOME); 
+  const handleBuyStars = async (planId: string, stars: number) => {
+      if (!token) {
+          alert('Необходимо войти в систему');
+          return;
+      }
+
+      try {
+          // Создаем checkout session
+          const { sessionId, url, success, credits, message } = await API.createCheckoutSession(token, planId);
+          
+          // Если план бесплатный (starter), звезды уже добавлены
+          if (success && credits !== undefined) {
+              setCredits(credits);
+              alert(message || `Получено ${stars} звезд!`);
+              refreshProfile();
+              setActiveTab(AppTab.HOME);
+              return;
+          }
+
+          // Если есть URL для Stripe Checkout, перенаправляем
+          if (url) {
+              window.location.href = url;
+          } else {
+              // Если нет URL, проверяем статус (может быть уже оплачено)
+              if (sessionId) {
+                  const status = await API.checkPaymentStatus(token, sessionId);
+                  if (status.paid) {
+                      setCredits(status.credits || credits);
+                      refreshProfile();
+                      setActiveTab(AppTab.HOME);
+                  }
+              }
+          }
+      } catch (error: any) {
+          console.error('Ошибка при создании платежа:', error);
+          alert(error.message || 'Ошибка при создании платежа');
+      }
   };
 
   const startNewProject = () => {

@@ -62,8 +62,18 @@ export async function restoreImage(imagePath: string): Promise<string> {
     });
     
     // Системная инструкция для восстановления
-    const restorePrompt = `Restore and enhance this old photo to modern quality without changing objects and details. Remove scratches, stains, wear marks, and physical damage. Eliminate blur, noise, film grain, and scanning artifacts. Increase sharpness and clarity of details (faces, textures, fine elements). Improve contrast and dynamic range. Restore shadow depth and highlight brightness. If the photo is black and white, sepia, or has faded colors, restore and normalize color rendition naturally. Restore blurred or unclear areas using image context.
-The result should look like a professional high-quality photograph.
+    const restorePrompt = `Restore and enhance this old photo to modern quality without changing objects and details. Remove scratches, stains, wear marks, and physical damage. Eliminate blur, noise, film grain, and scanning artifacts. Increase sharpness and clarity of details (faces, textures, fine elements). 
+
+Enhance colors and contrast:
+- Significantly increase color saturation to make colors vibrant and rich
+- Improve contrast and dynamic range for better visual impact
+- Enhance color depth and richness while maintaining natural appearance
+- Boost color intensity to make the image more vivid and appealing
+- Restore shadow depth and highlight brightness
+
+If the photo is black and white, sepia, or has faded colors, restore and normalize color rendition naturally with rich, saturated colors. Restore blurred or unclear areas using image context.
+
+The result should look like a professional high-quality photograph with vibrant, saturated colors and strong contrast.
 
 Output ONLY the restored image without any text or description.`;
     
