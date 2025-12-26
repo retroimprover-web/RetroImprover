@@ -33,18 +33,18 @@ export const getProjects = async (req: Request, res: Response): Promise<void> =>
       (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null) ||
       `${protocol}://${req.get('host')}` || 
       'http://localhost:3000';
-    
+
     // Преобразуем пути в URL
     // Если путь начинается с http:// или https://, это уже R2 URL
     const isR2Url = (url: string) => url.startsWith('http://') || url.startsWith('https://');
     
     const projectsWithUrls = projects.map((project, index) => {
       return {
-        ...project,
+      ...project,
         originalUrl: isR2Url(project.originalImage) 
           ? project.originalImage 
           : `${backendUrl}/uploads/${path.basename(project.originalImage)}`,
-        restoredUrl: project.restoredImage 
+      restoredUrl: project.restoredImage
           ? (isR2Url(project.restoredImage) 
               ? project.restoredImage 
               : `${backendUrl}/uploads/${path.basename(project.restoredImage)}`)
@@ -53,7 +53,7 @@ export const getProjects = async (req: Request, res: Response): Promise<void> =>
           ? (isR2Url(project.video)
               ? project.video
               : `${backendUrl}/uploads/${path.basename(project.video)}`)
-          : null,
+        : null,
         // Добавляем название проекта
         name: `Restoration ${projects.length - index}`,
       };

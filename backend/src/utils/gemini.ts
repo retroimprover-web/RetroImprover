@@ -5,20 +5,19 @@ import axios from 'axios';
 import Replicate from 'replicate';
 
 // API ключи из переменных окружения
-const API_KEY = process.env.GOOGLE_GENAI_API_KEY; // Для восстановления изображений
-const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN; // Для генерации видео
-
-if (!API_KEY) {
-  console.error('❌ GOOGLE_GENAI_API_KEY не установлен в переменных окружения!');
-  throw new Error('GOOGLE_GENAI_API_KEY не установлен. Установите переменную окружения GOOGLE_GENAI_API_KEY.');
-}
+const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN; // Для восстановления изображений и генерации видео
+const GOOGLE_GENAI_API_KEY = process.env.GOOGLE_GENAI_API_KEY; // Для генерации промптов (Gemini 3 Flash)
 
 if (!REPLICATE_API_TOKEN) {
   console.error('❌ REPLICATE_API_TOKEN не установлен в переменных окружения!');
-  console.warn('⚠️ Генерация видео будет недоступна без REPLICATE_API_TOKEN');
+  throw new Error('REPLICATE_API_TOKEN не установлен. Установите переменную окружения REPLICATE_API_TOKEN.');
 }
 
-const genAI = new GoogleGenerativeAI(API_KEY);
+if (!GOOGLE_GENAI_API_KEY) {
+  console.warn('⚠️ GOOGLE_GENAI_API_KEY не установлен. Генерация промптов будет недоступна.');
+}
+
+const genAI = GOOGLE_GENAI_API_KEY ? new GoogleGenerativeAI(GOOGLE_GENAI_API_KEY) : null;
 
 // Промпт для восстановления фотографий
 const RESTORE_SYSTEM_PROMPT = `You are a professional photo restoration AI. Analyze this vintage or damaged photo and provide detailed restoration instructions. The image needs to be enhanced to look like a modern high-quality photo. Focus on:
@@ -39,29 +38,33 @@ const VIDEO_PROMPT_PREFIX = `Cinematic shot, `;
 const VIDEO_PROMPT_SUFFIX = `, high quality, smooth motion, professional cinematography, 4K`;
 
 /**
- * Восстанавливает изображение используя Google Gemini 2.5 Flash Image
- * Модель: gemini-2.5-flash-image (Image-to-Image)
+ * Восстанавливает изображение используя Replicate google/nano-banana
+ * Модель: google/nano-banana (Image-to-Image)
  * Задача: Убрать шум, добавить детали, исправить цветопередачу старого снимка
  */
 export async function restoreImage(imagePath: string): Promise<string> {
   try {
-    console.log('🔄 Начало восстановления изображения через Gemini 2.5 Flash Image...');
+    console.log('🔄 Начало восстановления изображения через Replicate google/nano-banana...');
+    console.log('📋 API Token установлен:', REPLICATE_API_TOKEN ? '✅ Да' : '❌ Нет');
     
+    if (!REPLICATE_API_TOKEN) {
+      throw new Error('REPLICATE_API_TOKEN не установлен в переменных окружения');
+    }
+
+    const replicate = new Replicate({
+      auth: REPLICATE_API_TOKEN,
+    });
+
+    // Читаем изображение и конвертируем в base64 data URI
     const imageData = fs.readFileSync(imagePath);
     const base64Image = imageData.toString('base64');
     const mimeType = imagePath.endsWith('.png') ? 'image/png' : 'image/jpeg';
+    const imageDataUri = `data:${mimeType};base64,${base64Image}`;
     
-    // Используем Gemini 2.5 Flash Image для восстановления
-    const model = genAI.getGenerativeModel({ 
-      model: 'gemini-2.5-flash-image',
-      generationConfig: {
-        temperature: 0.4,
-        topP: 0.95,
-        topK: 40,
-      }
-    });
+    console.log('📸 Размер изображения:', imageData.length, 'байт');
+    console.log('📸 MIME тип:', mimeType);
     
-    // Системная инструкция для восстановления
+    // Промпт для восстановления изображения
     const restorePrompt = `Restore and enhance this old photo to modern quality without changing objects and details. Remove scratches, stains, wear marks, and physical damage. Eliminate blur, noise, film grain, and scanning artifacts. Increase sharpness and clarity of details (faces, textures, fine elements). 
 
 Enhance colors and contrast:
@@ -73,94 +76,94 @@ Enhance colors and contrast:
 
 If the photo is black and white, sepia, or has faded colors, restore and normalize color rendition naturally with rich, saturated colors. Restore blurred or unclear areas using image context.
 
-The result should look like a professional high-quality photograph with vibrant, saturated colors and strong contrast.
-
-Output ONLY the restored image without any text or description.`;
+The result should look like a professional high-quality photograph with vibrant, saturated colors and strong contrast.`;
     
-    // Подготовка картинки
-    const imagePart = {
-        inlineData: {
-        mimeType: mimeType,
-          data: base64Image,
-      },
-    };
+    console.log('📝 Промпт для восстановления:', restorePrompt.substring(0, 200) + '...');
 
-    // Вызов модели
-    console.log('📤 Отправка запроса к gemini-2.5-flash-image...');
-    const result = await model.generateContent([
-      { text: restorePrompt },
-      imagePart,
-    ]);
-
-    const response = await result.response;
-    console.log('✅ Получен ответ от модели');
+    // Запускаем генерацию через Replicate
+    console.log('🚀 Отправка запроса к Replicate google/nano-banana...');
     
-    // Поиск картинки в ответе
-    const parts = response.candidates?.[0]?.content?.parts;
-    console.log('Количество parts в ответе:', parts?.length || 0);
-    
-    if (parts && parts.length > 0) {
-      // Ищем изображение в ответе
-      for (let i = 0; i < parts.length; i++) {
-        const part = parts[i];
-        console.log(`Part ${i} type:`, part.inlineData ? 'inlineData' : 'text');
-        
-        if (part.inlineData && part.inlineData.data) {
-          // Нашли изображение в ответе!
-          const restoredImageBase64 = part.inlineData.data;
-          console.log('✅ Найдено изображение в ответе, размер base64:', restoredImageBase64.length);
-          
-          // Сохраняем восстановленное изображение
-          const ext = path.extname(imagePath);
-          const restoredFileName = `restored-${Date.now()}${ext}`;
-          const restoredImagePath = path.join(path.dirname(imagePath), restoredFileName);
-          
-          const restoredImageBuffer = Buffer.from(restoredImageBase64, 'base64');
-          fs.writeFileSync(restoredImagePath, restoredImageBuffer);
-          
-          console.log('✅ Восстановленное изображение успешно сгенерировано и сохранено:', restoredImagePath);
-          return restoredImagePath;
+    const output = await replicate.run(
+      "google/nano-banana",
+      {
+        input: {
+          prompt: restorePrompt,
+          image_input: imageDataUri,
         }
       }
-    }
+    );
+
+    console.log('✅ Изображение успешно восстановлено');
+    console.log('📋 Raw output type:', typeof output);
+    console.log('📋 Raw output:', JSON.stringify(output, null, 2).substring(0, 500));
+
+    // Извлекаем изображение из ответа
+    // output может быть объектом с методом url() или напрямую файлом
+    let restoredImageBuffer: Buffer;
+    const outputAny = output as any;
     
-    // Если изображение не найдено в ответе, пробуем извлечь из текста
-    const text = response.text();
-    console.log('⚠️ Изображение не найдено в parts, проверяем текст ответа...');
-    console.log('Длина текста ответа:', text.length);
-    console.log('Первые 500 символов:', text.substring(0, 500));
-    
-    // Пытаемся найти base64 изображение в тексте
-    const base64Match = text.match(/data:image\/(jpeg|png|jpg);base64,([A-Za-z0-9+/=]+)/);
-    if (base64Match) {
-      const restoredImageBase64 = base64Match[2];
-      console.log('✅ Найдено base64 изображение в тексте ответа');
+    if (outputAny && typeof outputAny === 'object' && 'url' in outputAny && typeof outputAny.url === 'function') {
+      // Если output имеет метод url(), скачиваем по URL
+      const imageUrl = outputAny.url();
+      console.log('🔗 Image URL:', imageUrl);
       
+      const imageResponse = await axios.get(imageUrl, {
+        responseType: 'arraybuffer',
+        timeout: 60000, // 1 минута на скачивание
+      });
+      
+      restoredImageBuffer = Buffer.from(imageResponse.data);
+    } else if (outputAny instanceof Buffer) {
+      // Если output уже Buffer
+      restoredImageBuffer = outputAny;
+    } else if (typeof outputAny === 'string' && outputAny.startsWith('http')) {
+      // Если output - это URL строка
+      console.log('🔗 Image URL:', outputAny);
+      const imageResponse = await axios.get(outputAny, {
+        responseType: 'arraybuffer',
+        timeout: 60000,
+      });
+      restoredImageBuffer = Buffer.from(imageResponse.data);
+    } else {
+      // Пытаемся записать output напрямую как файл (согласно примеру)
+      console.log('📝 Пытаемся записать output напрямую...');
       const ext = path.extname(imagePath);
       const restoredFileName = `restored-${Date.now()}${ext}`;
       const restoredImagePath = path.join(path.dirname(imagePath), restoredFileName);
       
-      const restoredImageBuffer = Buffer.from(restoredImageBase64, 'base64');
-      fs.writeFileSync(restoredImagePath, restoredImageBuffer);
+      // Используем writeFile из fs/promises для асинхронной записи
+      const { writeFile } = await import('fs/promises');
+      await writeFile(restoredImagePath, outputAny as string | NodeJS.ArrayBufferView);
       
       console.log('✅ Восстановленное изображение успешно сохранено:', restoredImagePath);
       return restoredImagePath;
     }
+
+    // Сохраняем восстановленное изображение
+    const ext = path.extname(imagePath);
+    const restoredFileName = `restored-${Date.now()}${ext}`;
+    const restoredImagePath = path.join(path.dirname(imagePath), restoredFileName);
     
-    // Если изображение не найдено, выбрасываем ошибку
-    console.error('❌ Модель не вернула восстановленное изображение');
-    console.error('Полный ответ модели:', JSON.stringify(response, null, 2));
-    throw new Error('Модель gemini-2.5-flash-image не вернула восстановленное изображение. Проверьте API ключ и доступность модели.');
+    fs.writeFileSync(restoredImagePath, restoredImageBuffer);
+    
+    console.log('✅ Восстановленное изображение успешно сохранено:', restoredImagePath);
+    console.log('📊 Размер изображения:', restoredImageBuffer.length, 'байт');
+    
+    return restoredImagePath;
     
   } catch (error: any) {
     console.error('❌ Ошибка при восстановлении изображения:', error);
     console.error('Детали ошибки:', error.message);
+    
     if (error.response) {
-      console.error('Ответ API:', JSON.stringify(error.response.data, null, 2));
+      console.error('📋 HTTP статус:', error.response.status);
+      console.error('📋 Ответ API:', JSON.stringify(error.response.data, null, 2));
     }
+    
     if (error.stack) {
       console.error('Stack trace:', error.stack);
     }
+    
     throw new Error(`Не удалось восстановить изображение: ${error.message}`);
   }
 }
@@ -173,6 +176,10 @@ Output ONLY the restored image without any text or description.`;
 export async function generateAnimationPrompts(restoredImagePath: string): Promise<string[]> {
   try {
     console.log('🔄 Генерация промптов для анимации через Gemini 3 Flash Preview...');
+    
+    if (!genAI) {
+      throw new Error('GOOGLE_GENAI_API_KEY не установлен. Генерация промптов требует Google Gemini API.');
+    }
     
     const imageData = fs.readFileSync(restoredImagePath);
     const base64Image = imageData.toString('base64');

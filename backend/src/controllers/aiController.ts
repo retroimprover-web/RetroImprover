@@ -345,7 +345,7 @@ export const generateVideo = async (req: Request, res: Response): Promise<void> 
 
     // Возвращаем URL (R2 или локальный)
     const finalVideoUrl = videoR2Url || `${backendUrl}/uploads/${path.basename(videoPath)}`;
-    
+
     res.json({
       videoUrl: finalVideoUrl,
       creditsLeft: updatedUser.credits,

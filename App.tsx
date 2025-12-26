@@ -180,28 +180,28 @@ const AuthScreen = ({ onLogin, language }: { onLogin: (token: string, user: any)
 
                         <div className={`grid gap-3 ${[oauthStatus.google, oauthStatus.facebook, oauthStatus.apple].filter(Boolean).length === 3 ? 'grid-cols-3' : [oauthStatus.google, oauthStatus.facebook, oauthStatus.apple].filter(Boolean).length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                             {oauthStatus.google && (
-                                <button 
-                                    onClick={() => handleSocialLogin('google')}
-                                    className="flex items-center justify-center py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl transition-colors border border-zinc-700"
-                                >
-                                    <GoogleIcon />
-                                </button>
+                            <button 
+                                onClick={() => handleSocialLogin('google')}
+                                className="flex items-center justify-center py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl transition-colors border border-zinc-700"
+                            >
+                                <GoogleIcon />
+                            </button>
                             )}
                             {oauthStatus.apple && (
-                                <button 
-                                    onClick={() => handleSocialLogin('apple')}
-                                    className="flex items-center justify-center py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl transition-colors border border-zinc-700"
-                                >
-                                    <AppleIcon />
-                                </button>
+                            <button 
+                                onClick={() => handleSocialLogin('apple')}
+                                className="flex items-center justify-center py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl transition-colors border border-zinc-700"
+                            >
+                                <AppleIcon />
+                            </button>
                             )}
                             {oauthStatus.facebook && (
-                                <button 
-                                    onClick={() => handleSocialLogin('facebook')}
-                                    className="flex items-center justify-center py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl transition-colors border border-zinc-700"
-                                >
-                                    <FacebookIcon />
-                                </button>
+                            <button 
+                                onClick={() => handleSocialLogin('facebook')}
+                                className="flex items-center justify-center py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl transition-colors border border-zinc-700"
+                            >
+                                <FacebookIcon />
+                            </button>
                             )}
                         </div>
                     </>

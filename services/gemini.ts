@@ -57,16 +57,16 @@ interface ProjectResponse {
 
 export const loginUser = async (email: string, password: string): Promise<AuthResponse> => {
   try {
-    const res = await fetch(`${API_URL}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
+  const res = await fetch(`${API_URL}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
     if (!res.ok) {
       const error = await res.json().catch(() => ({ error: 'Login failed' }));
       throw new Error(error.error || error.message || 'Login failed');
     }
-    return res.json();
+  return res.json();
   } catch (error: any) {
     if (error.message) throw error;
     throw new Error('Network error: Could not connect to server');
@@ -75,16 +75,16 @@ export const loginUser = async (email: string, password: string): Promise<AuthRe
 
 export const registerUser = async (email: string, password: string): Promise<AuthResponse> => {
   try {
-    const res = await fetch(`${API_URL}/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
+  const res = await fetch(`${API_URL}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
     if (!res.ok) {
       const error = await res.json().catch(() => ({ error: 'Registration failed' }));
       throw new Error(error.error || error.message || 'Registration failed');
     }
-    return res.json();
+  return res.json();
   } catch (error: any) {
     if (error.message) throw error;
     throw new Error('Network error: Could not connect to server');

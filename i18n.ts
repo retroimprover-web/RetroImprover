@@ -192,3 +192,4 @@ export function detectLanguage(): Language {
   return 'en';
 }
 
+
