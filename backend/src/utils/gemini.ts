@@ -210,13 +210,21 @@ export async function generateAnimationPrompts(restoredImagePath: string): Promi
     console.log('📋 Raw output:', JSON.stringify(output, null, 2).substring(0, 500));
 
     // Извлекаем текст из ответа
+    // Replicate может вернуть массив токенов (streaming) или готовый текст
     let text: string;
     const outputAny = output as any;
     
     if (typeof outputAny === 'string') {
       text = outputAny;
     } else if (Array.isArray(outputAny) && outputAny.length > 0) {
-      text = typeof outputAny[0] === 'string' ? outputAny[0] : String(outputAny[0]);
+      // Если это массив токенов (streaming), объединяем их в одну строку
+      if (typeof outputAny[0] === 'string') {
+        // Все элементы - строки, объединяем
+        text = outputAny.join('');
+      } else {
+        // Пытаемся преобразовать в строку
+        text = outputAny.map((item: any) => String(item)).join('');
+      }
     } else if (outputAny && typeof outputAny === 'object') {
       // Пытаемся найти текст в объекте
       if ('text' in outputAny && typeof outputAny.text === 'string') {
@@ -225,6 +233,9 @@ export async function generateAnimationPrompts(restoredImagePath: string): Promi
         text = outputAny.content;
       } else if ('message' in outputAny && typeof outputAny.message === 'string') {
         text = outputAny.message;
+      } else if (Array.isArray(outputAny)) {
+        // Если объект содержит массив, объединяем его
+        text = outputAny.map((item: any) => String(item)).join('');
       } else {
         // Пытаемся извлечь текст из JSON
         const outputStr = JSON.stringify(outputAny);
@@ -234,39 +245,73 @@ export async function generateAnimationPrompts(restoredImagePath: string): Promi
       text = String(outputAny);
     }
     
-    console.log('Ответ модели для промптов:', text.substring(0, 300));
+    console.log('Ответ модели для промптов (первые 500 символов):', text.substring(0, 500));
     
     // Парсим JSON из ответа
     try {
-      // Пытаемся найти JSON в тексте
-      const jsonMatch = text.match(/\[.*\]/s);
+      // Очищаем текст от лишних пробелов и символов в начале/конце
+      const cleanedText = text.trim();
+      
+      // Пытаемся найти JSON массив в тексте (может быть с лишними символами)
+      const jsonMatch = cleanedText.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
-        const prompts = JSON.parse(jsonMatch[0]);
-        if (Array.isArray(prompts) && prompts.length >= 4) {
-          console.log('✅ Успешно сгенерировано', prompts.length, 'промптов');
-          return prompts.slice(0, 4);
+        try {
+          const prompts = JSON.parse(jsonMatch[0]);
+          if (Array.isArray(prompts) && prompts.length >= 4) {
+            console.log('✅ Успешно сгенерировано', prompts.length, 'промптов из JSON');
+            return prompts.slice(0, 4).map((p: any) => String(p).trim());
+          } else if (Array.isArray(prompts) && prompts.length > 0) {
+            // Если меньше 4, но есть промпты, возвращаем что есть
+            console.log('⚠️ Сгенерировано только', prompts.length, 'промптов, но используем их');
+            return prompts.map((p: any) => String(p).trim());
+          }
+        } catch (e) {
+          console.warn('Не удалось распарсить найденный JSON:', e);
         }
       }
       
-      // Если не нашли JSON, пытаемся распарсить весь текст
-      const prompts = JSON.parse(text);
-      if (Array.isArray(prompts) && prompts.length >= 4) {
-        console.log('✅ Успешно сгенерировано', prompts.length, 'промптов');
-        return prompts.slice(0, 4);
+      // Если не нашли JSON, пытаемся распарсить весь текст как JSON
+      try {
+        const prompts = JSON.parse(cleanedText);
+        if (Array.isArray(prompts) && prompts.length >= 4) {
+          console.log('✅ Успешно сгенерировано', prompts.length, 'промптов из полного JSON');
+          return prompts.slice(0, 4).map((p: any) => String(p).trim());
+        } else if (Array.isArray(prompts) && prompts.length > 0) {
+          console.log('⚠️ Сгенерировано только', prompts.length, 'промптов, но используем их');
+          return prompts.map((p: any) => String(p).trim());
+        }
+      } catch (e) {
+        console.warn('Не удалось распарсить весь текст как JSON:', e);
       }
     } catch (parseError) {
-      console.warn('Не удалось распарсить JSON, извлекаем промпты из текста...');
-      // Если не JSON, пытаемся извлечь промпты из текста
-      const lines = text
-        .split('\n')
-        .filter(line => line.trim().length > 0 && !line.match(/^[\[\],\s]*$/))
-        .map(line => line.replace(/^[\d.\-\s]*/, '').replace(/[\[\]",]/g, '').trim())
-        .filter(line => line.length > 10);
-      
-      if (lines.length >= 4) {
-        console.log('✅ Извлечено', lines.length, 'промптов из текста');
-        return lines.slice(0, 4);
+      console.warn('Ошибка при парсинге JSON:', parseError);
+    }
+    
+    // Если не удалось распарсить JSON, пытаемся извлечь промпты из текста
+    console.warn('Не удалось распарсить JSON, извлекаем промпты из текста...');
+    console.log('Полный текст для анализа:', text);
+    
+    // Пытаемся найти строки в кавычках (JSON строки)
+    const quotedStrings = text.match(/"([^"\\]*(\\.[^"\\]*)*)"/g);
+    if (quotedStrings && quotedStrings.length >= 4) {
+      const prompts = quotedStrings
+        .map(s => s.replace(/^"|"$/g, '').replace(/\\"/g, '"').replace(/\\n/g, ' ').trim())
+        .filter(s => s.length > 10);
+      if (prompts.length >= 4) {
+        console.log('✅ Извлечено', prompts.length, 'промптов из строк в кавычках');
+        return prompts.slice(0, 4);
       }
+    }
+    
+    // Последняя попытка - извлечь промпты из текста по строкам
+    const lines = text
+      .split(/[,\n]/)
+      .map(line => line.trim().replace(/^[\d.\-\s]*/, '').replace(/[\[\]"]/g, '').trim())
+      .filter(line => line.length > 10 && !line.match(/^(with|a|the|and|or|to|of|in|on|at)$/i));
+    
+    if (lines.length >= 4) {
+      console.log('✅ Извлечено', lines.length, 'промптов из текста');
+      return lines.slice(0, 4);
     }
     
     throw new Error('Не удалось сгенерировать 4 промпта');
