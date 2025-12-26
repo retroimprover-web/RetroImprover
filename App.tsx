@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+    import React, { useState, useRef, useEffect } from 'react';
+import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import Cropper from 'react-easy-crop';
 import { AppStep, RestoredImage, SubscriptionPlan, ViewMode, AppTab } from './types';
 import { getCroppedImg, readFile } from './utils';
@@ -221,7 +221,7 @@ const AuthScreen = ({ onLogin, language }: { onLogin: (token: string, user: any)
     );
 }
 
-const Sidebar = ({ isOpen, onClose, activeTab, onSelectTab, onNewProject, onLogout, onProfile, language, onLanguageChange }: { 
+const Sidebar = ({ isOpen, onClose, activeTab, onSelectTab, onNewProject, onLogout, onProfile, language, onLanguageChange, token }: { 
     isOpen: boolean, 
     onClose: () => void, 
     activeTab: AppTab, 
@@ -230,8 +230,10 @@ const Sidebar = ({ isOpen, onClose, activeTab, onSelectTab, onNewProject, onLogo
     onLogout: () => void,
     onProfile: () => void,
     language: Language,
-    onLanguageChange: (lang: Language) => void
+    onLanguageChange: (lang: Language) => void,
+    token: string | null
 }) => {
+    const navigate = useNavigate();
     return (
         <>
             {isOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]" onClick={onClose} />}
@@ -266,23 +268,47 @@ const Sidebar = ({ isOpen, onClose, activeTab, onSelectTab, onNewProject, onLogo
                 </nav>
 
                 <div className="border-t border-zinc-800 pt-4 space-y-2">
-                    <button onClick={() => { onProfile(); onClose(); }} className="w-full flex items-center gap-3 px-4 py-3 text-zinc-300 hover:bg-zinc-900 rounded-xl transition-all">
-                        <User size={20} /> {t('profile', language)}
-                    </button>
-                    <div className="flex items-center gap-2 px-4 py-2">
-                        <Globe size={16} className="text-zinc-400" />
-                        <select 
-                            value={language} 
-                            onChange={(e) => onLanguageChange(e.target.value as Language)}
-                            className="bg-transparent text-zinc-300 text-sm border-none outline-none cursor-pointer"
-                        >
-                            <option value="en">{t('english', language)}</option>
-                            <option value="ru">{t('russian', language)}</option>
-                        </select>
-                    </div>
-                    <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/10 rounded-xl transition-all">
-                        <LogIn size={20} className="rotate-180"/> {t('signOut', language)}
-                    </button>
+                    {token ? (
+                        <>
+                            <button onClick={() => { onProfile(); onClose(); }} className="w-full flex items-center gap-3 px-4 py-3 text-zinc-300 hover:bg-zinc-900 rounded-xl transition-all">
+                                <User size={20} /> {t('profile', language)}
+                            </button>
+                            <div className="flex items-center gap-2 px-4 py-2">
+                                <Globe size={16} className="text-zinc-400" />
+                                <select 
+                                    value={language} 
+                                    onChange={(e) => onLanguageChange(e.target.value as Language)}
+                                    className="bg-transparent text-zinc-300 text-sm border-none outline-none cursor-pointer"
+                                >
+                                    <option value="en">{t('english', language)}</option>
+                                    <option value="ru">{t('russian', language)}</option>
+                                </select>
+                            </div>
+                            <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/10 rounded-xl transition-all">
+                                <LogIn size={20} className="rotate-180"/> {t('signOut', language)}
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <button onClick={() => { navigate('/auth'); onClose(); }} className="w-full flex items-center gap-3 px-4 py-3 text-zinc-300 hover:bg-zinc-900 rounded-xl transition-all">
+                                <LogIn size={20} /> {language === 'ru' ? 'Войти / Регистрация' : 'Sign In / Register'}
+                            </button>
+                            <button onClick={() => { navigate('/plans'); onClose(); }} className="w-full flex items-center gap-3 px-4 py-3 text-yellow-400 hover:bg-yellow-400/10 rounded-xl transition-all">
+                                <Sparkles size={20} /> {language === 'ru' ? 'Тарифы' : 'Pricing'}
+                            </button>
+                            <div className="flex items-center gap-2 px-4 py-2">
+                                <Globe size={16} className="text-zinc-400" />
+                                <select 
+                                    value={language} 
+                                    onChange={(e) => onLanguageChange(e.target.value as Language)}
+                                    className="bg-transparent text-zinc-300 text-sm border-none outline-none cursor-pointer"
+                                >
+                                    <option value="en">{t('english', language)}</option>
+                                    <option value="ru">{t('russian', language)}</option>
+                                </select>
+                            </div>
+                        </>
+                    )}
                     
                     <div className="border-t border-zinc-800 pt-4 mt-4">
                         <div className="text-xs text-zinc-500 px-4 mb-2">
@@ -536,6 +562,8 @@ export default function App() {
   // Processing Flags
   const [isRestoring, setIsRestoring] = useState(false);
   const [isVideoLoading, setIsVideoLoading] = useState(false);
+  const [isRestoringInProgress, setIsRestoringInProgress] = useState(false);
+  const [pendingRestoreImage, setPendingRestoreImage] = useState<string | null>(null);
   
   // Crop State
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -545,11 +573,59 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // --- Auth Handlers ---
-  const handleLogin = (newToken: string, user: any) => {
+  const handleLogin = async (newToken: string, user: any) => {
       setToken(newToken);
       localStorage.setItem('token', newToken);
       setCredits(user.credits);
       loadProjects(newToken);
+      
+      // Если была начата генерация, продолжаем её
+      if (isRestoringInProgress && pendingRestoreImage) {
+          await handleLoginDuringRestore(newToken, user);
+      }
+  };
+  
+  const handleLoginDuringRestore = async (newToken: string, user: any) => {
+      if (!pendingRestoreImage) return;
+      
+      try {
+          // Конвертируем base64 обратно в файл
+          const res = await fetch(pendingRestoreImage);
+          const blob = await res.blob();
+          const file = new File([blob], "upload.jpg", { type: "image/jpeg" });
+
+          const { project, creditsLeft } = await API.restorePhoto(newToken, file);
+          
+          setCredits(creditsLeft);
+          setCurrentProjectId(project.id);
+          setRestoredImage(project.restoredImage);
+          setIsRestoring(false);
+          setIsRestoringInProgress(false);
+          setPendingRestoreImage(null);
+          setStep(AppStep.WORKBENCH);
+          setViewMode(ViewMode.RESTORED);
+          
+          loadProjects(newToken);
+
+          // Generate Prompts
+          try {
+              const promptsData = await API.generatePrompts(newToken, project.id);
+              setVideoPrompts(Array.isArray(promptsData) ? promptsData : []);
+          } catch (promptError) {
+              console.error('Ошибка при генерации промптов:', promptError);
+              setVideoPrompts([]);
+          }
+      } catch (error) {
+          console.error("Restoration failed after login", error);
+          const errorMsg = language === 'ru' 
+              ? 'Не удалось восстановить изображение после регистрации. Попробуйте еще раз.'
+              : 'Failed to restore image after login. Please try again.';
+          alert(errorMsg);
+          setIsRestoring(false);
+          setIsRestoringInProgress(false);
+          setPendingRestoreImage(null);
+          refreshProfile();
+      }
   };
 
   const handleLogout = () => {
@@ -681,7 +757,20 @@ export default function App() {
   // --- Backend Integration Methods ---
 
   const handleRestore = async () => {
-    if (!croppedImage || !token) return;
+    if (!croppedImage) return;
+    
+    // Если пользователь не авторизован, сохраняем состояние и показываем регистрацию
+    if (!token) {
+        setIsRestoringInProgress(true);
+        setPendingRestoreImage(croppedImage);
+        setIsRestoring(true);
+        setStep(AppStep.WORKBENCH);
+        setViewMode(ViewMode.RESTORED);
+        navigate('/auth');
+        return;
+    }
+    
+    // Для авторизованных пользователей
     if (credits < 1) {
         triggerCreditError();
         return;
@@ -1148,6 +1237,7 @@ export default function App() {
                 }
             }
         }}
+        token={token}
       />
 
       <main className="flex-1 flex flex-col overflow-hidden relative">
