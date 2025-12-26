@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate, useLocation, Routes, Route, Navigate } from 'react-router-dom';
 import Cropper from 'react-easy-crop';
 import { AppStep, RestoredImage, SubscriptionPlan, ViewMode, AppTab } from './types';
 import { getCroppedImg, readFile } from './utils';
@@ -231,6 +232,21 @@ const Sidebar = ({ isOpen, onClose, activeTab, onSelectTab, onNewProject, onLogo
     language: Language,
     onLanguageChange: (lang: Language) => void
 }) => {
+    const navigate = useNavigate();
+    
+    const handleTabClick = (tab: AppTab) => {
+        const pathMap: Record<AppTab, string> = {
+            [AppTab.HOME]: '/',
+            [AppTab.PROJECTS]: '/projects',
+            [AppTab.GALLERY]: '/gallery',
+            [AppTab.PLANS]: '/plans',
+            [AppTab.PROFILE]: '/profile',
+        };
+        navigate(pathMap[tab]);
+        onSelectTab(tab);
+        onClose();
+    };
+    
     return (
         <>
             {isOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]" onClick={onClose} />}
@@ -255,7 +271,7 @@ const Sidebar = ({ isOpen, onClose, activeTab, onSelectTab, onNewProject, onLogo
                     ].map((item) => (
                         <button 
                             key={item.id}
-                            onClick={() => { onSelectTab(item.id as AppTab); onClose(); }}
+                            onClick={() => handleTabClick(item.id as AppTab)}
                             className={`w-full flex items-center gap-3 px-4 py-4 rounded-2xl transition-all ${activeTab === item.id ? 'bg-zinc-800 text-white font-semibold' : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'}`}
                         >
                             <item.icon size={20} />
@@ -265,7 +281,7 @@ const Sidebar = ({ isOpen, onClose, activeTab, onSelectTab, onNewProject, onLogo
                 </nav>
 
                 <div className="border-t border-zinc-800 pt-4 space-y-2">
-                    <button onClick={() => { onProfile(); onClose(); }} className="w-full flex items-center gap-3 px-4 py-3 text-zinc-300 hover:bg-zinc-900 rounded-xl transition-all">
+                    <button onClick={() => { handleTabClick(AppTab.PROFILE); }} className="w-full flex items-center gap-3 px-4 py-3 text-zinc-300 hover:bg-zinc-900 rounded-xl transition-all">
                         <User size={20} /> {t('profile', language)}
                     </button>
                     <div className="flex items-center gap-2 px-4 py-2">
@@ -649,6 +665,9 @@ const PlansView = ({
 // --- Main Application ---
 
 export default function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  
   // Auth State
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   
@@ -658,8 +677,16 @@ export default function App() {
     return saved || detectLanguage();
   });
   
-  // Navigation & State
-  const [activeTab, setActiveTab] = useState<AppTab>(AppTab.HOME);
+  // Navigation & State - синхронизируем с URL
+  const getActiveTabFromPath = (path: string): AppTab => {
+    if (path === '/projects') return AppTab.PROJECTS;
+    if (path === '/gallery') return AppTab.GALLERY;
+    if (path === '/plans') return AppTab.PLANS;
+    if (path === '/profile') return AppTab.PROFILE;
+    return AppTab.HOME;
+  };
+  
+  const activeTab = getActiveTabFromPath(location.pathname);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [step, setStep] = useState<AppStep>(AppStep.UPLOAD);
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.ORIGINAL);
@@ -761,11 +788,11 @@ export default function App() {
       if (token) {
           refreshProfile();
           loadProjects(token);
-          if (activeTab === AppTab.GALLERY) {
+          if (location.pathname === '/gallery') {
               loadLikedMedia(token);
           }
       }
-  }, [token, activeTab]);
+  }, [token, location.pathname]);
 
   // --- Logic ---
 
@@ -774,7 +801,7 @@ export default function App() {
       setTimeout(() => setHighlightCredits(false), 800);
       // Переход на экран пополнения при нехватке звезд
       setTimeout(() => {
-          setActiveTab(AppTab.PLANS);
+          navigate('/plans');
       }, 1000);
   };
 
@@ -793,7 +820,7 @@ export default function App() {
           
           // После успешной покупки обновляем профиль
           await refreshProfile();
-          setActiveTab(AppTab.HOME);
+          navigate('/');
       } catch (error: any) {
           console.error('Ошибка при покупке подписки:', error);
           alert(error.message || (language === 'ru' ? 'Ошибка при покупке подписки' : 'Error purchasing subscription'));
@@ -806,11 +833,11 @@ export default function App() {
           return;
       }
 
-      if (!hasSubscription) {
+          if (!hasSubscription) {
           alert(language === 'ru' 
               ? 'Дополнительные звезды можно купить только при активной подписке'
               : 'Additional stars can only be purchased with an active subscription');
-          setActiveTab(AppTab.PLANS);
+          navigate('/plans');
           return;
       }
 
@@ -839,7 +866,7 @@ export default function App() {
     setIsVideoLoading(false);
     setStep(AppStep.UPLOAD);
     setViewMode(ViewMode.ORIGINAL);
-    setActiveTab(AppTab.HOME);
+    navigate('/');
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1014,7 +1041,7 @@ export default function App() {
       
       setStep(AppStep.WORKBENCH);
       setViewMode((item.videoUrl || item.video) ? ViewMode.VIDEO : ViewMode.RESTORED);
-      setActiveTab(AppTab.HOME);
+      navigate('/');
       
       if (!(item.videoUrl || item.video) && (item.restoredUrl || item.restoredImage)) {
            // If loaded from gallery and has no video, try to fetch prompts or generate
@@ -1380,11 +1407,11 @@ export default function App() {
       <div className="noise-overlay" />
 
       <Header 
-        showBack={step !== AppStep.UPLOAD && activeTab === AppTab.HOME}
+        showBack={step !== AppStep.UPLOAD && location.pathname === '/'}
         onBack={handleBack}
         onMenu={() => setIsMenuOpen(true)}
         credits={credits}
-        onAddCredits={() => setActiveTab(AppTab.PLANS)}
+        onAddCredits={() => navigate('/plans')}
         highlightCredits={highlightCredits}
         onLogout={handleLogout}
       />
@@ -1394,11 +1421,18 @@ export default function App() {
         onClose={() => setIsMenuOpen(false)} 
         activeTab={activeTab}
         onSelectTab={(tab) => {
-            setActiveTab(tab);
+            const pathMap: Record<AppTab, string> = {
+                [AppTab.HOME]: '/',
+                [AppTab.PROJECTS]: '/projects',
+                [AppTab.GALLERY]: '/gallery',
+                [AppTab.PLANS]: '/plans',
+                [AppTab.PROFILE]: '/profile',
+            };
+            navigate(pathMap[tab]);
         }}
         onNewProject={startNewProject}
         onLogout={handleLogout}
-        onProfile={() => setActiveTab(AppTab.PROFILE as any)}
+        onProfile={() => navigate('/profile')}
         language={language}
         onLanguageChange={async (lang) => {
             setLanguage(lang);
@@ -1415,61 +1449,69 @@ export default function App() {
       />
 
       <main className="flex-1 flex flex-col overflow-hidden relative">
-        {activeTab === AppTab.HOME ? (
+        <Routes>
+          <Route path="/" element={
             <>
-                {renderNavWidgets()}
-                {renderContent()}
+              {renderNavWidgets()}
+              {renderContent()}
             </>
-        ) : activeTab === AppTab.PLANS ? (
-            <PlansView 
-                onBuy={handleBuySubscription} 
-                onBuyStars={handleBuyStars}
-                language={language} 
-                hasSubscription={hasSubscription}
-            />
-        ) : activeTab === AppTab.GALLERY ? (
-            <LikedMediaGallery 
-                items={likedMedia} 
-                onLoadItem={(item) => {
-                    // Загружаем проект по projectId
-                    const project = projects.find(p => p.id === item.projectId);
-                    if (project) {
-                        loadFromGalleryOrProject(project);
-                    }
-                }} 
-                title={t('likedGallery', language)} 
-                emptyMsg={t('noLikedPhotos', language)}
-                language={language}
-                                onDownload={(url, type) => downloadFile(url, `${type}_${Date.now()}.${type === 'video' ? 'mp4' : 'jpg'}`, type, token || undefined)}
-            />
-        ) : activeTab === (AppTab.PROFILE as any) ? (
-            <ProfileView 
-                email={userEmail} 
-                credits={credits} 
-                language={language}
-                onLanguageChange={async (lang) => {
-                    setLanguage(lang);
-                    localStorage.setItem('language', lang);
-                    // Сохраняем язык на сервере
-                    if (token) {
-                        try {
-                            await API.updateLanguage(token, lang);
-                        } catch (e) {
-                            console.error('Не удалось сохранить язык на сервере:', e);
-                        }
-                    }
-                }}
-                onClose={() => setActiveTab(AppTab.HOME)}
-            />
-        ) : (
+          } />
+          <Route path="/projects" element={
             <ProjectsGallery 
-                items={projects} 
-                onLoadItem={loadFromGalleryOrProject} 
-                title={t('myProjects', language)} 
-                emptyMsg={t('noRestorations', language)}
-                language={language}
+              items={projects} 
+              onLoadItem={loadFromGalleryOrProject} 
+              title={t('myProjects', language)} 
+              emptyMsg={t('noRestorations', language)}
+              language={language}
             />
-        )}
+          } />
+          <Route path="/gallery" element={
+            <LikedMediaGallery 
+              items={likedMedia} 
+              onLoadItem={(item) => {
+                // Загружаем проект по projectId
+                const project = projects.find(p => p.id === item.projectId);
+                if (project) {
+                  loadFromGalleryOrProject(project);
+                }
+              }} 
+              title={t('likedGallery', language)} 
+              emptyMsg={t('noLikedPhotos', language)}
+              language={language}
+              onDownload={(url, type) => downloadFile(url, `${type}_${Date.now()}.${type === 'video' ? 'mp4' : 'jpg'}`, type, token || undefined)}
+            />
+          } />
+          <Route path="/plans" element={
+            <PlansView 
+              onBuy={handleBuySubscription} 
+              onBuyStars={handleBuyStars}
+              language={language} 
+              hasSubscription={hasSubscription}
+            />
+          } />
+          <Route path="/profile" element={
+            <ProfileView 
+              email={userEmail} 
+              credits={credits} 
+              language={language}
+              onLanguageChange={async (lang) => {
+                setLanguage(lang);
+                localStorage.setItem('language', lang);
+                // Сохраняем язык на сервере
+                if (token) {
+                  try {
+                    await API.updateLanguage(token, lang);
+                  } catch (e) {
+                    console.error('Не удалось сохранить язык на сервере:', e);
+                  }
+                }
+              }}
+              onClose={() => navigate('/')}
+            />
+          } />
+          {/* Редирект всех неизвестных путей на главную */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </main>
     </div>
   );
