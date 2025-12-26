@@ -161,22 +161,14 @@ The result should look like a professional high-quality photograph with vibrant,
 }
 
 /**
- * Интерфейс для промпта с двумя языками
- */
-export interface BilingualPrompt {
-  en: string; // Английская версия (используется для генерации видео)
-  ru: string; // Русская версия (показывается пользователю)
-}
-
-/**
  * Генерирует промпты для анимации используя Replicate openai/gpt-5-nano
  * Модель: openai/gpt-5-nano (Vision model)
  * Задача: «Посмотреть» на восстановленное фото и придумать 4 варианта того, как это фото могло бы ожить
  * @param restoredImagePath - путь к восстановленному изображению
- * @param userLanguage - язык пользователя ('en' или 'ru') - используется только для определения, какую версию показывать
- * @returns Массив из 4 объектов с промптами на двух языках
+ * @param userLanguage - язык пользователя ('en' или 'ru')
+ * @returns Массив из 4 промптов (на русском, если userLanguage === 'ru', иначе на английском)
  */
-export async function generateAnimationPrompts(restoredImagePath: string, userLanguage: 'en' | 'ru' = 'en'): Promise<BilingualPrompt[]> {
+export async function generateAnimationPrompts(restoredImagePath: string, userLanguage: 'en' | 'ru' = 'en'): Promise<string[]> {
   try {
     console.log('🔄 Генерация промптов для анимации через Replicate openai/gpt-5-nano...');
     console.log('📋 API Token установлен:', REPLICATE_API_TOKEN ? '✅ Да' : '❌ Нет');
@@ -197,21 +189,9 @@ export async function generateAnimationPrompts(restoredImagePath: string, userLa
     
     console.log('📸 Размер изображения:', imageData.length, 'байт');
     
-    // Промпт для генерации идей на двух языках одновременно
-    // Модель должна вернуть короткие фразы (2-4 слова) на английском и русском
-    const prompt = `Analyze this photo. Describe 4 simple, positive, and friendly animation ideas to bring this scene to life. Each idea should be VERY SHORT (2-4 words only). Describe natural, gentle movements like slight smile, blinking, small head movements, or subtle gestures. Do NOT include camera movements (zoom, pan, etc.) or negative actions. Movements should be natural, smooth, and contextually appropriate to the photo.
-
-Return a JSON array of 4 objects. Each object must have two fields:
-- "en": English version (2-4 words), e.g. "gentle smile", "soft blink", "slight nod", "hair sway"
-- "ru": Russian translation (2-4 words), e.g. "мягкая улыбка", "нежное моргание", "легкий кивок", "колыхание волос"
-
-Example format:
-[
-  {"en": "gentle smile", "ru": "мягкая улыбка"},
-  {"en": "soft blink", "ru": "нежное моргание"},
-  {"en": "slight nod", "ru": "легкий кивок"},
-  {"en": "hair sway", "ru": "колыхание волос"}
-]`;
+    // Промпт для генерации идей (всегда на английском для модели)
+    // Модель должна вернуть короткие фразы (2-4 слова), которые потом будут переведены на русский если нужно
+    const prompt = `Analyze this photo. Describe 4 simple, positive, and friendly animation ideas to bring this scene to life. Each idea should be VERY SHORT (2-4 words only). Describe natural, gentle movements like slight smile, blinking, small head movements, or subtle gestures. Do NOT include camera movements (zoom, pan, etc.) or negative actions. Movements should be natural, smooth, and contextually appropriate to the photo. Return only a JSON array of 4 very short English phrases (2-4 words each). Examples: "gentle smile", "soft blink", "slight nod", "hair sway".`;
     
     console.log('📝 Промпт для генерации:', prompt.substring(0, 200) + '...');
 
@@ -282,11 +262,11 @@ Example format:
           const prompts = JSON.parse(jsonMatch[0]);
           if (Array.isArray(prompts) && prompts.length >= 4) {
             console.log('✅ Успешно сгенерировано', prompts.length, 'промптов из JSON');
-            return normalizeBilingualPrompts(prompts.slice(0, 4));
+            return processPrompts(prompts.slice(0, 4).map((p: any) => String(p).trim()), userLanguage);
           } else if (Array.isArray(prompts) && prompts.length > 0) {
             // Если меньше 4, но есть промпты, возвращаем что есть
             console.log('⚠️ Сгенерировано только', prompts.length, 'промптов, но используем их');
-            return normalizeBilingualPrompts(prompts);
+            return processPrompts(prompts.map((p: any) => String(p).trim()), userLanguage);
           }
         } catch (e) {
           console.warn('Не удалось распарсить найденный JSON:', e);
@@ -298,10 +278,10 @@ Example format:
         const prompts = JSON.parse(cleanedText);
         if (Array.isArray(prompts) && prompts.length >= 4) {
           console.log('✅ Успешно сгенерировано', prompts.length, 'промптов из полного JSON');
-          return normalizeBilingualPrompts(prompts.slice(0, 4));
+          return processPrompts(prompts.slice(0, 4).map((p: any) => String(p).trim()), userLanguage);
         } else if (Array.isArray(prompts) && prompts.length > 0) {
           console.log('⚠️ Сгенерировано только', prompts.length, 'промптов, но используем их');
-          return normalizeBilingualPrompts(prompts);
+          return processPrompts(prompts.map((p: any) => String(p).trim()), userLanguage);
         }
       } catch (e) {
         console.warn('Не удалось распарсить весь текст как JSON:', e);
@@ -314,20 +294,15 @@ Example format:
     console.warn('Не удалось распарсить JSON, извлекаем промпты из текста...');
     console.log('Полный текст для анализа:', text);
     
-    // Если не удалось распарсить как билингвальный формат, пытаемся извлечь и создать билингвальные промпты
-    console.warn('Не удалось распарсить билингвальный формат, пытаемся извлечь промпты...');
-    
     // Пытаемся найти строки в кавычках (JSON строки)
     const quotedStrings = text.match(/"([^"\\]*(\\.[^"\\]*)*)"/g);
     if (quotedStrings && quotedStrings.length >= 4) {
-      const englishPrompts = quotedStrings
+      const prompts = quotedStrings
         .map(s => s.replace(/^"|"$/g, '').replace(/\\"/g, '"').replace(/\\n/g, ' ').trim())
-        .filter(s => s.length > 3)
-        .slice(0, 4);
-      
-      if (englishPrompts.length >= 4) {
-        console.log('✅ Извлечено', englishPrompts.length, 'английских промптов, создаем билингвальные');
-        return createBilingualPrompts(englishPrompts);
+        .filter(s => s.length > 5); // Уменьшили минимальную длину для коротких промптов
+      if (prompts.length >= 4) {
+        console.log('✅ Извлечено', prompts.length, 'промптов из строк в кавычках');
+        return processPrompts(prompts.slice(0, 4), userLanguage);
       }
     }
     
@@ -335,11 +310,12 @@ Example format:
     const lines = text
       .split(/[,\n]/)
       .map(line => line.trim().replace(/^[\d.\-\s]*/, '').replace(/[\[\]"]/g, '').trim())
-      .filter(line => line.length > 3 && !line.match(/^(with|a|the|and|or|to|of|in|on|at)$/i));
+      .filter(line => line.length > 3 && !line.match(/^(with|a|the|and|or|to|of|in|on|at)$/i)); // Уменьшили минимальную длину
     
     if (lines.length >= 4) {
-      console.log('✅ Извлечено', lines.length, 'промптов из текста, создаем билингвальные');
-      return createBilingualPrompts(lines.slice(0, 4));
+      console.log('✅ Извлечено', lines.length, 'промптов из текста');
+      const extractedPrompts = lines.slice(0, 4);
+      return processPrompts(extractedPrompts, userLanguage);
     }
     
     throw new Error('Не удалось сгенерировать 4 промпта');
@@ -357,46 +333,23 @@ Example format:
 }
 
 /**
- * Нормализует билингвальные промпты из ответа модели
+ * Упрощает промпты до 2-4 слов и переводит на русский если нужно
  */
-function normalizeBilingualPrompts(prompts: any[]): BilingualPrompt[] {
-  return prompts.map((prompt: any, index: number) => {
-    // Если это уже объект с en и ru
-    if (prompt && typeof prompt === 'object' && 'en' in prompt && 'ru' in prompt) {
-      return {
-        en: String(prompt.en).trim().split(/\s+/).slice(0, 4).join(' '), // Упрощаем до 2-4 слов
-        ru: String(prompt.ru).trim().split(/\s+/).slice(0, 4).join(' '),
-      };
+function processPrompts(prompts: string[], userLanguage: 'en' | 'ru'): string[] {
+  const processed = prompts.map(prompt => {
+    // Упрощаем промпт до 2-4 слов
+    const words = prompt.trim().split(/\s+/).filter(w => w.length > 0);
+    const simplified = words.slice(0, 4).join(' '); // Берем первые 4 слова
+    
+    if (userLanguage === 'ru') {
+      // Переводим на русский
+      return translateToRussian(simplified);
     }
     
-    // Если это строка, создаем билингвальный промпт
-    if (typeof prompt === 'string') {
-      const simplified = prompt.trim().split(/\s+/).slice(0, 4).join(' ');
-      return {
-        en: simplified,
-        ru: translateToRussian(simplified),
-      };
-    }
-    
-    // Fallback
-    return {
-      en: `prompt ${index + 1}`,
-      ru: `подсказка ${index + 1}`,
-    };
+    return simplified;
   });
-}
-
-/**
- * Создает билингвальные промпты из английских
- */
-function createBilingualPrompts(englishPrompts: string[]): BilingualPrompt[] {
-  return englishPrompts.map(prompt => {
-    const simplified = prompt.trim().split(/\s+/).slice(0, 4).join(' ');
-    return {
-      en: simplified,
-      ru: translateToRussian(simplified),
-    };
-  });
+  
+  return processed;
 }
 
 /**

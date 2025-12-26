@@ -14,10 +14,7 @@ model User {
   id           String    @id @default(uuid())
   email        String    @unique
   passwordHash String?
-  credits      Int       @default(3)
-  subscriptionType String? // 'week_trial', 'month', 'yearly', null
-  subscriptionExpiresAt DateTime? // Дата окончания подписки
-  purchasedStars Int @default(0) // Звезды, купленные дополнительно (не сгорают)
+  credits      Int       @default(5)
   language     String    @default("en") // 'en' or 'ru'
   createdAt    DateTime  @default(now())
   projects     Project[]

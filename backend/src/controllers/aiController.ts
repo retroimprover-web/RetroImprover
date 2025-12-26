@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
 import { AuthRequest } from '../middleware/auth';
-import { restoreImage, generateAnimationPrompts, generateVideo as generateVideoUtil, BilingualPrompt } from '../utils/gemini';
+import { restoreImage, generateAnimationPrompts, generateVideo as generateVideoUtil } from '../utils/gemini';
 import { uploadToR2, generateR2Key, getLocalFilePath } from '../utils/r2';
 import path from 'path';
 import fs from 'fs';
@@ -188,16 +188,16 @@ export const generatePrompts = async (req: Request, res: Response): Promise<void
 
     const userLanguage = (user?.language || 'en') as 'en' | 'ru';
 
-    // Генерируем промпты (на двух языках)
-    let bilingualPrompts: BilingualPrompt[];
+    // Генерируем промпты
+    let prompts: string[];
     try {
-      bilingualPrompts = await generateAnimationPrompts(localRestoredImagePath, userLanguage);
+      prompts = await generateAnimationPrompts(localRestoredImagePath, userLanguage);
       
-      if (!bilingualPrompts || bilingualPrompts.length < 4) {
+      if (!prompts || prompts.length < 4) {
         throw new Error('Не удалось сгенерировать 4 промпта');
       }
       
-      console.log('✅ Успешно сгенерировано', bilingualPrompts.length, 'билингвальных промптов');
+      console.log('✅ Успешно сгенерировано', prompts.length, 'промптов');
     } catch (error: any) {
       console.error('❌ Ошибка при генерации промптов:', error);
       res.status(500).json({ 
@@ -207,22 +207,15 @@ export const generatePrompts = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    // Сохраняем билингвальные промпты в БД
+    // Обновляем проект в БД
     await prisma.project.update({
       where: { id: projectId },
       data: {
-        prompts: bilingualPrompts as any, // Сохраняем оба языка (Prisma JSON тип)
+        prompts: prompts,
       },
     });
 
-    // Отправляем на фронтенд промпты с нужным языком для отображения
-    // Но также отправляем оба языка, чтобы фронтенд мог использовать английские при генерации видео
-    const promptsForDisplay = bilingualPrompts.map(p => userLanguage === 'ru' ? p.ru : p.en);
-    
-    res.json({ 
-      prompts: promptsForDisplay, // Для отображения пользователю
-      bilingualPrompts: bilingualPrompts // Полные данные с обоими языками
-    });
+    res.json({ prompts });
   } catch (error) {
     console.error('Ошибка при генерации промптов:', error);
     res.status(500).json({ error: 'Ошибка при генерации промптов' });
@@ -290,44 +283,11 @@ export const generateVideo = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Получаем билингвальные промпты из проекта и извлекаем английские версии выбранных
-    let englishPrompts: string[] = [];
-    if (project.prompts) {
-      try {
-        const bilingualPrompts = (typeof project.prompts === 'string' 
-          ? JSON.parse(project.prompts) 
-          : project.prompts) as BilingualPrompt[];
-        
-        if (Array.isArray(bilingualPrompts)) {
-          // Находим английские версии выбранных промптов
-          englishPrompts = selectedPrompts.map((selected: string) => {
-            // Ищем промпт по русской или английской версии
-            const found = bilingualPrompts.find(p => 
-              p.en.toLowerCase() === selected.toLowerCase() || 
-              p.ru.toLowerCase() === selected.toLowerCase()
-            );
-            return found ? found.en : selected; // Используем английскую версию или оригинал если не нашли
-          });
-        } else {
-          // Fallback: если формат старый, используем selectedPrompts как есть
-          englishPrompts = selectedPrompts;
-        }
-      } catch (e) {
-        console.warn('Не удалось распарсить билингвальные промпты, используем selectedPrompts:', e);
-        englishPrompts = selectedPrompts;
-      }
-    } else {
-      // Если промптов нет, используем selectedPrompts как есть
-      englishPrompts = selectedPrompts;
-    }
-
-    console.log('📝 Выбранные промпты (английские для генерации видео):', englishPrompts);
-
     // Генерируем видео (это может занять 1-2 минуты)
     let videoPath: string;
     try {
       console.log('🔄 Начало генерации видео...');
-      videoPath = await generateVideoUtil(localRestoredImagePath, englishPrompts);
+      videoPath = await generateVideoUtil(localRestoredImagePath, selectedPrompts);
       
       // Проверяем, что файл существует
       if (!fs.existsSync(videoPath)) {

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate, useLocation, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import Cropper from 'react-easy-crop';
 import { AppStep, RestoredImage, SubscriptionPlan, ViewMode, AppTab } from './types';
 import { getCroppedImg, readFile } from './utils';
@@ -232,21 +232,6 @@ const Sidebar = ({ isOpen, onClose, activeTab, onSelectTab, onNewProject, onLogo
     language: Language,
     onLanguageChange: (lang: Language) => void
 }) => {
-    const navigate = useNavigate();
-    
-    const handleTabClick = (tab: AppTab) => {
-        const pathMap: Record<AppTab, string> = {
-            [AppTab.HOME]: '/',
-            [AppTab.PROJECTS]: '/projects',
-            [AppTab.GALLERY]: '/gallery',
-            [AppTab.PLANS]: '/plans',
-            [AppTab.PROFILE]: '/profile',
-        };
-        navigate(pathMap[tab]);
-        onSelectTab(tab);
-        onClose();
-    };
-    
     return (
         <>
             {isOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]" onClick={onClose} />}
@@ -271,7 +256,7 @@ const Sidebar = ({ isOpen, onClose, activeTab, onSelectTab, onNewProject, onLogo
                     ].map((item) => (
                         <button 
                             key={item.id}
-                            onClick={() => handleTabClick(item.id as AppTab)}
+                            onClick={() => { onSelectTab(item.id as AppTab); onClose(); }}
                             className={`w-full flex items-center gap-3 px-4 py-4 rounded-2xl transition-all ${activeTab === item.id ? 'bg-zinc-800 text-white font-semibold' : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'}`}
                         >
                             <item.icon size={20} />
@@ -281,20 +266,9 @@ const Sidebar = ({ isOpen, onClose, activeTab, onSelectTab, onNewProject, onLogo
                 </nav>
 
                 <div className="border-t border-zinc-800 pt-4 space-y-2">
-                    {token ? (
-                        <button onClick={() => { handleTabClick(AppTab.PROFILE); }} className="w-full flex items-center gap-3 px-4 py-3 text-zinc-300 hover:bg-zinc-900 rounded-xl transition-all">
-                            <User size={20} /> {t('profile', language)}
-                        </button>
-                    ) : (
-                        <>
-                            <button onClick={() => { navigate('/auth'); onClose(); }} className="w-full flex items-center gap-3 px-4 py-3 text-zinc-300 hover:bg-zinc-900 rounded-xl transition-all">
-                                <LogIn size={20} /> {language === 'ru' ? 'Войти' : 'Sign In'}
-                            </button>
-                            <button onClick={() => { navigate('/plans'); onClose(); }} className="w-full flex items-center gap-3 px-4 py-3 text-yellow-400 hover:bg-yellow-400/10 rounded-xl transition-all">
-                                <Sparkles size={20} /> {language === 'ru' ? 'Тарифы' : 'Pricing'}
-                            </button>
-                        </>
-                    )}
+                    <button onClick={() => { onProfile(); onClose(); }} className="w-full flex items-center gap-3 px-4 py-3 text-zinc-300 hover:bg-zinc-900 rounded-xl transition-all">
+                        <User size={20} /> {t('profile', language)}
+                    </button>
                     <div className="flex items-center gap-2 px-4 py-2">
                         <Globe size={16} className="text-zinc-400" />
                         <select 
@@ -309,6 +283,21 @@ const Sidebar = ({ isOpen, onClose, activeTab, onSelectTab, onNewProject, onLogo
                     <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/10 rounded-xl transition-all">
                         <LogIn size={20} className="rotate-180"/> {t('signOut', language)}
                     </button>
+                    
+                    <div className="border-t border-zinc-800 pt-4 mt-4">
+                        <div className="text-xs text-zinc-500 px-4 mb-2">
+                            {language === 'ru' ? 'Юридическая информация' : 'Legal'}
+                        </div>
+                        <button onClick={() => { navigate('/terms'); onClose(); }} className="w-full flex items-center gap-3 px-4 py-2 text-zinc-400 hover:bg-zinc-900 rounded-xl transition-all text-sm">
+                            {language === 'ru' ? 'Условия использования' : 'Terms & Conditions'}
+                        </button>
+                        <button onClick={() => { navigate('/privacy'); onClose(); }} className="w-full flex items-center gap-3 px-4 py-2 text-zinc-400 hover:bg-zinc-900 rounded-xl transition-all text-sm">
+                            {language === 'ru' ? 'Политика конфиденциальности' : 'Privacy Policy'}
+                        </button>
+                        <button onClick={() => { navigate('/refund'); onClose(); }} className="w-full flex items-center gap-3 px-4 py-2 text-zinc-400 hover:bg-zinc-900 rounded-xl transition-all text-sm">
+                            {language === 'ru' ? 'Политика возврата' : 'Refund Policy'}
+                        </button>
+                    </div>
                 </div>
             </div>
         </>
@@ -470,208 +459,41 @@ const ProfileView = ({ email, credits, language, onLanguageChange, onClose }: {
     </div>
 );
 
-const PlansView = ({ 
-    onBuy, 
-    onBuyStars, 
-    language, 
-    hasSubscription 
-}: { 
-    onBuy: (planId: string, stars: number, price: number) => void,
-    onBuyStars: (stars: number, price: number) => void,
-    language: Language,
-    hasSubscription: boolean
-}) => {
-    const subscriptions = [
-        { 
-            id: 'week_trial', 
-            price: 5.99, 
-            stars: 30, 
-            label: language === 'ru' ? 'Неделя' : 'Week Trial',
-            period: language === 'ru' ? '7 дней' : '7 days',
-            desc: language === 'ru' ? 'Попробуйте все возможности' : 'Try all features',
-            popular: false
-        },
-        { 
-            id: 'month', 
-            price: 13.99, 
-            stars: 90, 
-            label: language === 'ru' ? 'Месяц' : 'Month',
-            period: language === 'ru' ? '30 дней' : '30 days',
-            desc: language === 'ru' ? 'Лучший выбор' : 'Best choice',
-            popular: true
-        },
-        { 
-            id: 'yearly', 
-            price: 83.99, 
-            stars: 750, 
-            label: language === 'ru' ? 'Год' : 'Yearly',
-            period: language === 'ru' ? '365 дней' : '365 days',
-            desc: language === 'ru' ? '$6.99/месяц' : '$6.99/month',
-            popular: false,
-            savings: language === 'ru' ? 'Экономия 50%' : 'Save 50%'
-        },
-    ];
-
-    const additionalStars = [
-        { stars: 20, price: 3.99, discount: null },
-        { stars: 50, price: 8.99, discount: '10%' },
-        { stars: 100, price: 14.99, discount: '25%' },
-    ];
-
-    return (
-        <div className="w-full h-full overflow-y-auto p-6 pt-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="max-w-4xl mx-auto">
-                {/* Subscriptions Section */}
-                <div className="text-center mb-8">
-                    <h2 className="text-3xl font-bold mb-2 bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
-                        {language === 'ru' ? 'Выберите подписку' : 'Choose Subscription'}
-                    </h2>
-                    <p className="text-zinc-400 text-sm">
-                        {language === 'ru' 
-                            ? 'Подписка автоматически продлевается. Звезды из подписки не переносятся на следующий период.'
-                            : 'Subscription auto-renews. Subscription stars do not carry over to the next period.'}
-                    </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
-                    {subscriptions.map((plan) => (
-                        <div 
-                            key={plan.id} 
-                            className={`group relative p-6 rounded-2xl border-2 transition-all cursor-pointer overflow-hidden ${
-                                plan.popular 
-                                    ? 'border-yellow-400 bg-gradient-to-br from-yellow-400/10 to-zinc-900 scale-105' 
-                                    : 'border-zinc-800 bg-zinc-900/50 hover:bg-zinc-900 hover:border-zinc-600'
-                            }`}
-                            onClick={() => onBuy(plan.id, plan.stars, plan.price)}
-                        >
-                            {plan.popular && (
-                                <div className="absolute top-4 right-4">
-                                    <span className="text-[10px] bg-yellow-400 text-black px-2 py-1 rounded-full font-bold">
-                                        {language === 'ru' ? 'ПОПУЛЯРНО' : 'POPULAR'}
-                                    </span>
-                                </div>
-                            )}
-                            {plan.savings && (
-                                <div className="absolute top-4 right-4">
-                                    <span className="text-[10px] bg-green-500 text-white px-2 py-1 rounded-full font-bold">
-                                        {plan.savings}
-                                    </span>
-                                </div>
-                            )}
-                            
-                            <div className="relative z-10">
-                                <div className="mb-4">
-                                    <div className="text-2xl font-bold text-white mb-1">{plan.label}</div>
-                                    <div className="text-sm text-zinc-400">{plan.period}</div>
-                                </div>
-                                
-                                <div className="mb-4">
-                                    <div className="flex items-baseline gap-1 mb-2">
-                                        <span className="text-3xl font-bold text-white">${plan.price}</span>
-                                        {plan.id === 'yearly' && (
-                                            <span className="text-sm text-zinc-400">/год</span>
-                                        )}
-                                    </div>
-                                    {plan.id === 'yearly' && (
-                                        <div className="text-xs text-zinc-400">
-                                            {language === 'ru' ? '$6.99/месяц' : '$6.99/month'}
-                                        </div>
-                                    )}
-                                </div>
-                                
-                                <div className="flex items-center gap-2 text-yellow-400 font-bold mb-4">
-                                    <Sparkles size={18} fill="currentColor"/> 
-                                    <span className="text-xl">{plan.stars} ⭐</span>
-                                </div>
-                                
-                                <div className="text-xs text-zinc-500 mb-4">{plan.desc}</div>
-                                
-                                <Button className="w-full" variant="primary" size="sm">
-                                    {language === 'ru' ? 'Купить' : 'Buy'}
-                                </Button>
-                            </div>
-                            
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                        </div>
-                    ))}
-                </div>
-
-                {/* Additional Stars Section - Only show if has subscription */}
-                {hasSubscription && (
-                    <>
-                        <div className="text-center mb-6">
-                            <h3 className="text-2xl font-bold mb-2">
-                                {language === 'ru' ? 'Дополнительные звезды' : 'Additional Stars'}
-                            </h3>
-                            <p className="text-zinc-400 text-sm">
-                                {language === 'ru' 
-                                    ? 'Дополнительные звезды не сгорают и остаются навсегда'
-                                    : 'Additional stars never expire and stay forever'}
-                            </p>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {additionalStars.map((item) => (
-                                <div 
-                                    key={item.stars}
-                                    className="group relative p-6 rounded-2xl border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-900 hover:border-zinc-600 transition-all cursor-pointer overflow-hidden"
-                                    onClick={() => onBuyStars(item.stars, item.price)}
-                                >
-                                    {item.discount && (
-                                        <div className="absolute top-4 right-4">
-                                            <span className="text-[10px] bg-green-500 text-white px-2 py-1 rounded-full font-bold">
-                                                -{item.discount}
-                                            </span>
-                                        </div>
-                                    )}
-                                    
-                                    <div className="relative z-10 text-center">
-                                        <div className="flex items-center justify-center gap-2 text-yellow-400 font-bold mb-4">
-                                            <Sparkles size={24} fill="currentColor"/> 
-                                            <span className="text-3xl">{item.stars}</span>
-                                        </div>
-                                        
-                                        <div className="mb-4">
-                                            <div className="text-2xl font-bold text-white">${item.price}</div>
-                                            {item.discount && (
-                                                <div className="text-xs text-zinc-400 line-through mt-1">
-                                                    ${(item.price / (1 - parseFloat(item.discount) / 100)).toFixed(2)}
-                                                </div>
-                                            )}
-                                        </div>
-                                        
-                                        <Button className="w-full" variant="secondary" size="sm">
-                                            {language === 'ru' ? 'Купить' : 'Buy'}
-                                        </Button>
-                                    </div>
-                                    
-                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                                </div>
-                            ))}
-                        </div>
-                    </>
-                )}
-
-                {!hasSubscription && (
-                    <div className="text-center text-zinc-500 text-sm mt-8">
-                        {language === 'ru' 
-                            ? 'Дополнительные звезды доступны только при активной подписке'
-                            : 'Additional stars are only available with an active subscription'}
-                    </div>
-                )}
-
-                {/* Auto-renewal notice */}
-                <div className="mt-8 text-center">
-                    <p className="text-xs text-zinc-500">
-                        {language === 'ru' 
-                            ? 'Подписка автоматически продлевается в конце срока. Вы можете отменить в любое время.'
-                            : 'Subscription auto-renews at the end of the period. You can cancel anytime.'}
-                    </p>
-                </div>
-            </div>
+const PlansView = ({ onBuy, language }: { onBuy: (planId: string, stars: number) => void, language: Language }) => (
+    <div className="w-full h-full flex flex-col items-center justify-center p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold mb-2">{t('getMoreStars', language)}</h2>
+            <p className="text-zinc-400">{t('generateHighQuality', language)}</p>
         </div>
-    );
-}
+        
+        <div className="w-full max-w-sm space-y-3">
+            {[
+                { id: 'starter', price: 'Free', stars: 3, label: t('starter', language), desc: t('tryItOut', language) },
+                { id: 'creator', price: '$9.99', stars: 20, label: t('creator', language), desc: t('bestForHobbyists', language) },
+                { id: 'pro', price: '$25.99', stars: 50, label: t('pro', language), desc: t('heavyUsage', language) },
+            ].map((plan) => (
+            <div key={plan.id} className="group relative p-4 rounded-2xl border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-900 hover:border-zinc-600 transition-all flex justify-between items-center overflow-hidden cursor-pointer"
+                 onClick={() => onBuy(plan.id, plan.stars)}>
+                <div className="relative z-10">
+                    <div className="flex items-center gap-2 mb-1">
+                         <span className="font-bold text-white text-lg">{plan.label}</span>
+                         {plan.id === 'mid' && <span className="text-[10px] bg-purple-500 text-white px-2 py-0.5 rounded-full font-bold">{t('popular', language)}</span>}
+                    </div>
+                    <div className="flex items-center gap-1 text-yellow-400 font-bold">
+                        <Sparkles size={14} fill="currentColor"/> {plan.stars} {t('stars', language)}
+                    </div>
+                </div>
+                <div className="relative z-10 flex flex-col items-end">
+                    <div className="text-xl font-bold text-white">{plan.price}</div>
+                    <div className="text-xs text-zinc-500">{plan.desc}</div>
+                </div>
+                {/* Hover Glow */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+            </div>
+            ))}
+        </div>
+    </div>
+)
 
 // --- Main Application ---
 
@@ -688,33 +510,18 @@ export default function App() {
     return saved || detectLanguage();
   });
   
-  // Navigation & State - синхронизируем с URL
-  const getActiveTabFromPath = (path: string): AppTab => {
-    if (path === '/projects') return AppTab.PROJECTS;
-    if (path === '/gallery') return AppTab.GALLERY;
-    if (path === '/plans') return AppTab.PLANS;
-    if (path === '/profile') return AppTab.PROFILE;
-    return AppTab.HOME;
-  };
-  
-  const activeTab = getActiveTabFromPath(location.pathname);
+  // Navigation & State
+  const [activeTab, setActiveTab] = useState<AppTab>(AppTab.HOME);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [step, setStep] = useState<AppStep>(AppStep.UPLOAD);
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.ORIGINAL);
   const [highlightCredits, setHighlightCredits] = useState(false);
   
   // Data State
-  // Для неавторизованных пользователей даем виртуальные 3 звезды
-  const [credits, setCredits] = useState(() => {
-    const savedToken = localStorage.getItem('token');
-    return savedToken ? 0 : 3; // 3 виртуальные звезды для неавторизованных
-  }); 
+  const [credits, setCredits] = useState(0); 
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string>('');
   const [likedMedia, setLikedMedia] = useState<any[]>([]);
-  const [hasSubscription, setHasSubscription] = useState(false);
-  const [isRestoringInProgress, setIsRestoringInProgress] = useState(false);
-  const [pendingRestoreResult, setPendingRestoreResult] = useState<any>(null);
 
   const [originalImage, setOriginalImage] = useState<string | null>(null);
   const [croppedImage, setCroppedImage] = useState<string | null>(null);
@@ -741,14 +548,8 @@ export default function App() {
   const handleLogin = (newToken: string, user: any) => {
       setToken(newToken);
       localStorage.setItem('token', newToken);
-      // Если была начата генерация, продолжаем её через handleLoginDuringRestore
-      if (isRestoringInProgress && croppedImage) {
-        handleLoginDuringRestore(newToken, user);
-      } else {
-        // Если генерация не была начата, просто обновляем профиль
-        setCredits(user.credits);
-        loadProjects(newToken);
-      }
+      setCredits(user.credits);
+      loadProjects(newToken);
   };
 
   const handleLogout = () => {
@@ -773,13 +574,6 @@ export default function App() {
         const p = await API.getProfile(token);
         setCredits(p.credits);
         setUserEmail(p.email);
-        // Проверяем наличие активной подписки
-        if (p.subscriptionType && p.subscriptionExpiresAt) {
-          const expiresAt = new Date(p.subscriptionExpiresAt);
-          setHasSubscription(expiresAt > new Date());
-        } else {
-          setHasSubscription(false);
-        }
         // Загружаем язык с сервера, если есть
         if (p.language) {
           setLanguage(p.language);
@@ -805,15 +599,31 @@ export default function App() {
       }
   };
 
+  // Синхронизация activeTab с location.pathname
+  useEffect(() => {
+    const path = location.pathname;
+    if (path === '/') {
+      setActiveTab(AppTab.HOME);
+    } else if (path === '/projects') {
+      setActiveTab(AppTab.PROJECTS);
+    } else if (path === '/gallery') {
+      setActiveTab(AppTab.GALLERY);
+    } else if (path === '/plans') {
+      setActiveTab(AppTab.PLANS);
+    } else if (path === '/profile') {
+      setActiveTab(AppTab.PROFILE as any);
+    }
+  }, [location.pathname]);
+
   useEffect(() => {
       if (token) {
           refreshProfile();
           loadProjects(token);
-          if (location.pathname === '/gallery') {
+          if (activeTab === AppTab.GALLERY) {
               loadLikedMedia(token);
           }
       }
-  }, [token, location.pathname]);
+  }, [token, activeTab]);
 
   // --- Logic ---
 
@@ -822,58 +632,14 @@ export default function App() {
       setTimeout(() => setHighlightCredits(false), 800);
       // Переход на экран пополнения при нехватке звезд
       setTimeout(() => {
-          navigate('/plans');
+          setActiveTab(AppTab.PLANS);
       }, 1000);
   };
 
-  const handleBuySubscription = async (planId: string, stars: number, price: number) => {
-      if (!token) {
-          alert(language === 'ru' ? 'Необходимо войти в систему' : 'You need to sign in');
-          return;
-      }
-
-      try {
-          // TODO: Интеграция с платежной системой (Stripe или другой)
-          // Пока просто показываем сообщение
-          alert(language === 'ru' 
-              ? `Покупка подписки ${planId} за $${price} (${stars} звезд). Интеграция с платежной системой в разработке.`
-              : `Buying subscription ${planId} for $${price} (${stars} stars). Payment integration in development.`);
-          
-          // После успешной покупки обновляем профиль
-          await refreshProfile();
-          navigate('/');
-      } catch (error: any) {
-          console.error('Ошибка при покупке подписки:', error);
-          alert(error.message || (language === 'ru' ? 'Ошибка при покупке подписки' : 'Error purchasing subscription'));
-      }
-  };
-
-  const handleBuyStars = async (stars: number, price: number) => {
-      if (!token) {
-          alert(language === 'ru' ? 'Необходимо войти в систему' : 'You need to sign in');
-          return;
-      }
-
-          if (!hasSubscription) {
-          alert(language === 'ru' 
-              ? 'Дополнительные звезды можно купить только при активной подписке'
-              : 'Additional stars can only be purchased with an active subscription');
-          navigate('/plans');
-          return;
-      }
-
-      try {
-          // TODO: Интеграция с платежной системой
-          alert(language === 'ru' 
-              ? `Покупка ${stars} звезд за $${price}. Интеграция с платежной системой в разработке.`
-              : `Buying ${stars} stars for $${price}. Payment integration in development.`);
-          
-          // После успешной покупки обновляем профиль
-          await refreshProfile();
-      } catch (error: any) {
-          console.error('Ошибка при покупке звезд:', error);
-          alert(error.message || (language === 'ru' ? 'Ошибка при покупке звезд' : 'Error purchasing stars'));
-      }
+  const handleBuyStars = (planId: string, stars: number) => {
+      // Для MVP: можно добавить звезды вручную через базу данных
+      alert(`Для добавления ${stars} звезд обратитесь к администратору или используйте базу данных.`);
+      setActiveTab(AppTab.HOME); 
   };
 
   const startNewProject = () => {
@@ -887,7 +653,7 @@ export default function App() {
     setIsVideoLoading(false);
     setStep(AppStep.UPLOAD);
     setViewMode(ViewMode.ORIGINAL);
-    navigate('/');
+    setActiveTab(AppTab.HOME);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -915,38 +681,7 @@ export default function App() {
   // --- Backend Integration Methods ---
 
   const handleRestore = async () => {
-    if (!croppedImage) return;
-    
-    // Проверяем виртуальные или реальные кредиты
-    const currentCredits = token ? credits : 3; // Для неавторизованных используем виртуальные 3 звезды
-    if (currentCredits < 1) {
-        if (token) {
-          triggerCreditError();
-        } else {
-          // Для неавторизованных показываем регистрацию
-          setIsRestoringInProgress(true);
-          setIsRestoring(true);
-          setStep(AppStep.WORKBENCH);
-          setViewMode(ViewMode.RESTORED);
-        }
-        return;
-    }
-
-    // Если пользователь не зарегистрирован, начинаем процесс и показываем регистрацию
-    if (!token) {
-      // Списываем виртуальную звезду
-      setCredits(prev => prev - 1);
-      setIsRestoringInProgress(true);
-      setIsRestoring(true);
-      setStep(AppStep.WORKBENCH);
-      setViewMode(ViewMode.RESTORED);
-      
-      // Показываем модальное окно регистрации
-      // (будет обработано в рендере)
-      return;
-    }
-
-    // Для авторизованных пользователей
+    if (!croppedImage || !token) return;
     if (credits < 1) {
         triggerCreditError();
         return;
@@ -969,95 +704,25 @@ export default function App() {
       setCurrentProjectId(project.id);
       setRestoredImage(project.restoredImage);
       setIsRestoring(false);
-      setIsRestoringInProgress(false);
       
       // Refresh projects list
       loadProjects(token);
 
       // Generate Prompts
-      try {
-        const promptsData = await API.generatePrompts(token, project.id);
-        // API возвращает массив строк для отображения
-        setVideoPrompts(Array.isArray(promptsData) ? promptsData : []);
-      } catch (promptError) {
-        console.error('Ошибка при генерации промптов:', promptError);
-        // Не блокируем процесс, просто оставляем промпты пустыми
-        setVideoPrompts([]);
-      }
+      const prompts = await API.generatePrompts(token, project.id);
+      setVideoPrompts(prompts);
 
     } catch (error) {
       console.error("Restoration failed", error);
       alert("Failed to restore image. Ensure backend is running.");
       setIsRestoring(false);
-      setIsRestoringInProgress(false);
       setViewMode(ViewMode.ORIGINAL);
-      if (token) {
-        refreshProfile(); // Sync credits back in case of fail
-      }
-    }
-  };
-
-  // Обработка регистрации во время генерации
-  const handleLoginDuringRestore = async (newToken: string, user: any) => {
-    setToken(newToken);
-    localStorage.setItem('token', newToken);
-    
-    // Если была начата генерация, продолжаем её
-    if (isRestoringInProgress && croppedImage) {
-      try {
-        const res = await fetch(croppedImage);
-        const blob = await res.blob();
-        const file = new File([blob], "upload.jpg", { type: "image/jpeg" });
-
-        // Пользователь уже потратил 1 виртуальную звезду, поэтому у него должно остаться 2
-        // Но на сервере у нового пользователя 3 звезды, поэтому списываем еще 1
-        const { project, creditsLeft } = await API.restorePhoto(newToken, file);
-        
-        // Обновляем кредиты (должно быть 2, так как 1 уже потрачена виртуально)
-        setCredits(creditsLeft);
-        setCurrentProjectId(project.id);
-        setRestoredImage(project.restoredImage);
-        setIsRestoring(false);
-        setIsRestoringInProgress(false);
-        
-        loadProjects(newToken);
-
-        // Generate Prompts
-        try {
-          const promptsData = await API.generatePrompts(newToken, project.id);
-          setVideoPrompts(Array.isArray(promptsData) ? promptsData : []);
-        } catch (promptError) {
-          console.error('Ошибка при генерации промптов:', promptError);
-          setVideoPrompts([]);
-        }
-      } catch (error) {
-        console.error("Restoration failed after login", error);
-        const errorMsg = language === 'ru' 
-          ? 'Не удалось восстановить изображение после регистрации. Попробуйте еще раз.'
-          : 'Failed to restore image after login. Please try again.';
-        alert(errorMsg);
-        setIsRestoring(false);
-        setIsRestoringInProgress(false);
-        refreshProfile();
-      }
-    } else {
-      // Если генерация не была начата, просто обновляем профиль
-      setCredits(user.credits);
-      loadProjects(newToken);
+      refreshProfile(); // Sync credits back in case of fail
     }
   };
 
   const handleGenerateVideo = async () => {
-    if (!currentProjectId || selectedPromptIndices.length === 0) return;
-    
-    // Для неавторизованных пользователей требуем регистрацию
-    if (!token) {
-      alert(language === 'ru' 
-        ? 'Для генерации видео необходимо зарегистрироваться'
-        : 'You need to sign up to generate video');
-      navigate('/auth');
-      return;
-    }
+    if (!currentProjectId || !token || selectedPromptIndices.length === 0) return;
     
     const cost = 3; // Fixed cost for simplicity in MVP, or server logic
     if (credits < cost) {
@@ -1065,41 +730,21 @@ export default function App() {
         return;
     }
 
-    // НЕ списываем кредиты заранее - только после успешной генерации
+    setCredits(prev => prev - cost);
     setIsVideoLoading(true);
     setViewMode(ViewMode.VIDEO);
 
     try {
       const selected = selectedPromptIndices.map(i => videoPrompts[i]);
-      
-      // Проверяем, что промпты не пустые
-      if (!selected || selected.length === 0) {
-        throw new Error(language === 'ru' ? 'Промпты не выбраны' : 'No prompts selected');
-      }
-      
-      console.log('🎬 Отправка запроса на генерацию видео с промптами:', selected);
-      
       const { videoUrl, creditsLeft } = await API.generateVideo(token, currentProjectId, selected);
       
-      // Только после успешной генерации обновляем состояние
       setCredits(creditsLeft);
       setGeneratedVideo(videoUrl);
       loadProjects(token);
 
     } catch (e: any) {
-      console.error('❌ Ошибка при генерации видео:', e);
-      
-      // Возвращаемся обратно к восстановленному изображению
-      setViewMode(ViewMode.RESTORED);
-      setIsVideoLoading(false);
-      
-      // Показываем понятное сообщение об ошибке
-      const errorMessage = e.message || (language === 'ru' 
-        ? 'Не удалось сгенерировать видео. Попробуйте еще раз.' 
-        : 'Failed to generate video. Please try again.');
-      alert(errorMessage);
-      
-      // Синхронизируем кредиты с сервером (на случай если они были списаны на бэкенде)
+      console.error(e);
+      alert(e.message || "Video generation failed.");
       refreshProfile();
     } finally {
       setIsVideoLoading(false);
@@ -1130,43 +775,21 @@ export default function App() {
       
       setStep(AppStep.WORKBENCH);
       setViewMode((item.videoUrl || item.video) ? ViewMode.VIDEO : ViewMode.RESTORED);
-      navigate('/');
+      setActiveTab(AppTab.HOME);
       
       if (!(item.videoUrl || item.video) && (item.restoredUrl || item.restoredImage)) {
            // If loaded from gallery and has no video, try to fetch prompts or generate
+           // For MVP, we might need to re-trigger prompt gen or store prompts in DB
+           // We'll leave empty or simple array for now
            if (item.prompts) {
                try {
                    const prompts = typeof item.prompts === 'string' ? JSON.parse(item.prompts) : item.prompts;
-                   
-                   // Обрабатываем билингвальные промпты (объекты с en/ru) или простые строки
-                   if (Array.isArray(prompts)) {
-                     if (prompts.length > 0 && typeof prompts[0] === 'object' && 'en' in prompts[0] && 'ru' in prompts[0]) {
-                       // Это билингвальные промпты - извлекаем нужный язык
-                       const userLang = language === 'ru' ? 'ru' : 'en';
-                       setVideoPrompts(prompts.map((p: any) => p[userLang] || p.en || ''));
-                     } else {
-                       // Это простые строки
-                       setVideoPrompts(prompts);
-                     }
-                   } else {
-                     setVideoPrompts([]);
-                   }
+                   setVideoPrompts(Array.isArray(prompts) ? prompts : []);
                } catch (e) {
-                   console.error('Ошибка при парсинге промптов:', e);
                    setVideoPrompts([]);
                }
            } else {
-               // Если промптов нет, пытаемся загрузить их с сервера
-               if (token && item.id) {
-                 API.generatePrompts(token, item.id)
-                   .then(prompts => setVideoPrompts(Array.isArray(prompts) ? prompts : []))
-                   .catch(e => {
-                     console.error('Ошибка при загрузке промптов:', e);
-                     setVideoPrompts([]);
-                   });
-               } else {
-                 setVideoPrompts([]);
-               }
+               setVideoPrompts([]);
            }
       }
   };
@@ -1406,7 +1029,7 @@ export default function App() {
                                             onClick={handleGenerateVideo}
                                             className="w-full text-sm"
                                     >
-                                        {t('generateVideoStars', language, { count: 3 })}
+                                        {t('generateVideoStars', language, { count: selectedPromptIndices.length * 3 })}
                                     </Button>
                                 </div>
                             )}
@@ -1434,48 +1057,14 @@ export default function App() {
                  )
              }
              
-             // Если видео не загружено, показываем сообщение и кнопку возврата
-             if (!generatedVideo) {
-                 return (
-                    <div className="flex-1 flex flex-col items-center justify-center space-y-6 p-6">
-                        <div className="text-center">
-                            <Video size={48} className="mx-auto text-zinc-500 mb-4" />
-                            <h3 className="text-xl font-bold mb-2">
-                                {language === 'ru' ? 'Видео не готово' : 'Video not ready'}
-                            </h3>
-                            <p className="text-zinc-500 text-sm mb-6">
-                                {language === 'ru' 
-                                    ? 'Видео еще не было сгенерировано или произошла ошибка.'
-                                    : 'Video has not been generated yet or an error occurred.'}
-                            </p>
-                            <Button variant="secondary" onClick={() => setViewMode(ViewMode.RESTORED)}>
-                                <ArrowLeft size={16}/> {t('backToEditor', language)}
-                            </Button>
-                        </div>
-                    </div>
-                 )
-             }
-             
              return (
                 <div className="flex-1 flex flex-col h-full animate-in fade-in duration-500">
                      <div className="flex-1 relative min-h-0 bg-black">
-                         <video 
-                             src={generatedVideo} 
-                             autoPlay 
-                             loop 
-                             muted 
-                             playsInline 
-                             className="w-full h-full object-contain"
-                             onError={(e) => {
-                                 console.error('Ошибка загрузки видео:', e);
-                                 // При ошибке загрузки видео возвращаемся к восстановленному изображению
-                                 setViewMode(ViewMode.RESTORED);
-                             }}
-                         />
+                         {generatedVideo && <video src={generatedVideo} autoPlay loop muted playsInline className="w-full h-full object-contain" />}
                          
                          <div className="absolute top-20 right-4 flex flex-col gap-3 z-50">
                             <button 
-                                onClick={() => downloadFile(generatedVideo, `video_${Date.now()}.mp4`, 'video', token || undefined)}
+                                onClick={() => downloadFile(generatedVideo!, `video_${Date.now()}.mp4`, 'video', token || undefined)}
                                 className="p-3 bg-black/60 backdrop-blur-md rounded-full text-white hover:bg-black/80 border border-white/10 shadow-xl transition-transform active:scale-95"
                             >
                                 <Download size={20} />
@@ -1499,115 +1088,13 @@ export default function App() {
       return null;
   }
 
-  // Если идет генерация без регистрации, показываем модальное окно регистрации поверх процесса
-  if (isRestoringInProgress && !token) {
-      return (
-        <div className="h-screen w-screen bg-zinc-950 text-white relative overflow-hidden flex flex-col">
-            <div className="noise-bg" />
-            <div className="noise-overlay" />
-            
-            {/* Показываем процесс генерации на фоне */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center space-y-6 opacity-30">
-                <div className="relative w-24 h-24">
-                    <div className="absolute inset-0 border-4 border-zinc-800 rounded-full"></div>
-                    <div className="absolute inset-0 border-4 border-white rounded-full border-t-transparent animate-spin"></div>
-                    <Wand2 size={32} className="absolute inset-0 m-auto text-white animate-pulse" />
-                </div>
-                <h3 className="text-xl font-bold animate-pulse">
-                    {language === 'ru' ? 'Восстановление...' : 'Restoring...'}
-                </h3>
-            </div>
-            
-            {/* Модальное окно регистрации */}
-            <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/80 backdrop-blur-sm">
-                <div className="w-full max-w-md p-6">
-                    <div className="bg-zinc-900/95 border border-zinc-800 rounded-3xl p-8 shadow-2xl">
-                        <h2 className="text-2xl font-bold mb-4 text-center">
-                            {language === 'ru' ? 'Зарегистрируйтесь, чтобы увидеть результат' : 'Sign up to see the result'}
-                        </h2>
-                        <p className="text-zinc-400 text-sm mb-6 text-center">
-                            {language === 'ru' 
-                                ? 'Процесс восстановления уже начат. Зарегистрируйтесь, чтобы увидеть результат. У вас останется 2 звезды.'
-                                : 'Restoration process has started. Sign up to see the result. You will have 2 stars left.'}
-                        </p>
-                        <AuthScreen 
-                            onLogin={handleLoginDuringRestore} 
-                            language={language} 
-                        />
-                    </div>
-                </div>
-            </div>
-        </div>
-      )
-  }
-  
-  // Если нет токена и нет процесса генерации, показываем интерфейс с возможностью начать работу
+  // If no token, show Auth Screen
   if (!token) {
       return (
         <div className="h-screen w-screen bg-zinc-950 text-white relative overflow-hidden flex flex-col">
             <div className="noise-bg" />
             <div className="noise-overlay" />
-            
-            <Header 
-              showBack={step !== AppStep.UPLOAD}
-              onBack={handleBack}
-              onMenu={() => setIsMenuOpen(true)}
-              credits={credits}
-              onAddCredits={() => navigate('/plans')}
-              highlightCredits={highlightCredits}
-              onLogout={() => {}}
-            />
-            
-            <Sidebar 
-              isOpen={isMenuOpen} 
-              onClose={() => setIsMenuOpen(false)} 
-              activeTab={activeTab}
-              onSelectTab={(tab) => {
-                  const pathMap: Record<AppTab, string> = {
-                      [AppTab.HOME]: '/',
-                      [AppTab.PROJECTS]: '/projects',
-                      [AppTab.GALLERY]: '/gallery',
-                      [AppTab.PLANS]: '/plans',
-                      [AppTab.PROFILE]: '/profile',
-                  };
-                  navigate(pathMap[tab]);
-              }}
-              onNewProject={startNewProject}
-              onLogout={() => {}}
-              onProfile={() => navigate('/auth')}
-              language={language}
-              onLanguageChange={async (lang) => {
-                  setLanguage(lang);
-                  localStorage.setItem('language', lang);
-              }}
-            />
-            
-            <main className="flex-1 flex flex-col overflow-hidden relative">
-              <Routes>
-                <Route path="/" element={
-                  <>
-                    {renderNavWidgets()}
-                    {renderContent()}
-                  </>
-                } />
-                <Route path="/plans" element={
-                  <PlansView 
-                    onBuy={handleBuySubscription} 
-                    onBuyStars={handleBuyStars}
-                    language={language} 
-                    hasSubscription={hasSubscription}
-                  />
-                } />
-                <Route path="/auth" element={
-                  <div className="w-full h-full flex items-center justify-center p-6">
-                    <div className="w-full max-w-md">
-                      <AuthScreen onLogin={handleLogin} language={language} />
-                    </div>
-                  </div>
-                } />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </main>
+            <AuthScreen onLogin={handleLogin} language={language} />
         </div>
       )
   }
@@ -1618,11 +1105,11 @@ export default function App() {
       <div className="noise-overlay" />
 
       <Header 
-        showBack={step !== AppStep.UPLOAD && location.pathname === '/'}
+        showBack={step !== AppStep.UPLOAD && activeTab === AppTab.HOME}
         onBack={handleBack}
         onMenu={() => setIsMenuOpen(true)}
         credits={credits}
-        onAddCredits={() => navigate('/plans')}
+        onAddCredits={() => setActiveTab(AppTab.PLANS)}
         highlightCredits={highlightCredits}
         onLogout={handleLogout}
       />
@@ -1639,11 +1126,15 @@ export default function App() {
                 [AppTab.PLANS]: '/plans',
                 [AppTab.PROFILE]: '/profile',
             };
-            navigate(pathMap[tab]);
+            navigate(pathMap[tab] || '/');
+            setActiveTab(tab);
         }}
         onNewProject={startNewProject}
         onLogout={handleLogout}
-        onProfile={() => navigate('/profile')}
+        onProfile={() => {
+            navigate('/profile');
+            setActiveTab(AppTab.PROFILE as any);
+        }}
         language={language}
         onLanguageChange={async (lang) => {
             setLanguage(lang);
@@ -1661,6 +1152,33 @@ export default function App() {
 
       <main className="flex-1 flex flex-col overflow-hidden relative">
         <Routes>
+          <Route path="/terms" element={
+            <div className="flex-1 w-full h-full">
+              <iframe 
+                src="https://pub-9bb081fe61954f5dbc7ccfcbb278f817.r2.dev/Doc/Terms_and_Conditions_RetroImprover.pdf" 
+                className="w-full h-full border-0"
+                title="Terms and Conditions"
+              />
+            </div>
+          } />
+          <Route path="/privacy" element={
+            <div className="flex-1 w-full h-full">
+              <iframe 
+                src="https://pub-9bb081fe61954f5dbc7ccfcbb278f817.r2.dev/Doc/Privacy_Policy_RetroImprover.pdf" 
+                className="w-full h-full border-0"
+                title="Privacy Policy"
+              />
+            </div>
+          } />
+          <Route path="/refund" element={
+            <div className="flex-1 w-full h-full">
+              <iframe 
+                src="https://pub-9bb081fe61954f5dbc7ccfcbb278f817.r2.dev/Doc/Refund_Policy_RetroImprover.pdf" 
+                className="w-full h-full border-0"
+                title="Refund Policy"
+              />
+            </div>
+          } />
           <Route path="/" element={
             <>
               {renderNavWidgets()}
@@ -1680,11 +1198,11 @@ export default function App() {
             <LikedMediaGallery 
               items={likedMedia} 
               onLoadItem={(item) => {
-                // Загружаем проект по projectId
-                const project = projects.find(p => p.id === item.projectId);
-                if (project) {
-                  loadFromGalleryOrProject(project);
-                }
+                  // Загружаем проект по projectId
+                  const project = projects.find(p => p.id === item.projectId);
+                  if (project) {
+                      loadFromGalleryOrProject(project);
+                  }
               }} 
               title={t('likedGallery', language)} 
               emptyMsg={t('noLikedPhotos', language)}
@@ -1693,12 +1211,7 @@ export default function App() {
             />
           } />
           <Route path="/plans" element={
-            <PlansView 
-              onBuy={handleBuySubscription} 
-              onBuyStars={handleBuyStars}
-              language={language} 
-              hasSubscription={hasSubscription}
-            />
+            <PlansView onBuy={handleBuyStars} language={language} />
           } />
           <Route path="/profile" element={
             <ProfileView 
@@ -1706,22 +1219,23 @@ export default function App() {
               credits={credits} 
               language={language}
               onLanguageChange={async (lang) => {
-                setLanguage(lang);
-                localStorage.setItem('language', lang);
-                // Сохраняем язык на сервере
-                if (token) {
-                  try {
-                    await API.updateLanguage(token, lang);
-                  } catch (e) {
-                    console.error('Не удалось сохранить язык на сервере:', e);
+                  setLanguage(lang);
+                  localStorage.setItem('language', lang);
+                  // Сохраняем язык на сервере
+                  if (token) {
+                      try {
+                          await API.updateLanguage(token, lang);
+                      } catch (e) {
+                          console.error('Не удалось сохранить язык на сервере:', e);
+                      }
                   }
-                }
               }}
-              onClose={() => navigate('/')}
+              onClose={() => {
+                  navigate('/');
+                  setActiveTab(AppTab.HOME);
+              }}
             />
           } />
-          {/* Редирект всех неизвестных путей на главную */}
-          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
     </div>
