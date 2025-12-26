@@ -281,9 +281,20 @@ const Sidebar = ({ isOpen, onClose, activeTab, onSelectTab, onNewProject, onLogo
                 </nav>
 
                 <div className="border-t border-zinc-800 pt-4 space-y-2">
-                    <button onClick={() => { handleTabClick(AppTab.PROFILE); }} className="w-full flex items-center gap-3 px-4 py-3 text-zinc-300 hover:bg-zinc-900 rounded-xl transition-all">
-                        <User size={20} /> {t('profile', language)}
-                    </button>
+                    {token ? (
+                        <button onClick={() => { handleTabClick(AppTab.PROFILE); }} className="w-full flex items-center gap-3 px-4 py-3 text-zinc-300 hover:bg-zinc-900 rounded-xl transition-all">
+                            <User size={20} /> {t('profile', language)}
+                        </button>
+                    ) : (
+                        <>
+                            <button onClick={() => { navigate('/auth'); onClose(); }} className="w-full flex items-center gap-3 px-4 py-3 text-zinc-300 hover:bg-zinc-900 rounded-xl transition-all">
+                                <LogIn size={20} /> {language === 'ru' ? 'Войти' : 'Sign In'}
+                            </button>
+                            <button onClick={() => { navigate('/plans'); onClose(); }} className="w-full flex items-center gap-3 px-4 py-3 text-yellow-400 hover:bg-yellow-400/10 rounded-xl transition-all">
+                                <Sparkles size={20} /> {language === 'ru' ? 'Тарифы' : 'Pricing'}
+                            </button>
+                        </>
+                    )}
                     <div className="flex items-center gap-2 px-4 py-2">
                         <Globe size={16} className="text-zinc-400" />
                         <select 
@@ -693,7 +704,11 @@ export default function App() {
   const [highlightCredits, setHighlightCredits] = useState(false);
   
   // Data State
-  const [credits, setCredits] = useState(0); 
+  // Для неавторизованных пользователей даем виртуальные 3 звезды
+  const [credits, setCredits] = useState(() => {
+    const savedToken = localStorage.getItem('token');
+    return savedToken ? 0 : 3; // 3 виртуальные звезды для неавторизованных
+  }); 
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string>('');
   const [likedMedia, setLikedMedia] = useState<any[]>([]);
@@ -726,8 +741,14 @@ export default function App() {
   const handleLogin = (newToken: string, user: any) => {
       setToken(newToken);
       localStorage.setItem('token', newToken);
-      setCredits(user.credits);
-      loadProjects(newToken);
+      // Если была начата генерация, продолжаем её через handleLoginDuringRestore
+      if (isRestoringInProgress && croppedImage) {
+        handleLoginDuringRestore(newToken, user);
+      } else {
+        // Если генерация не была начата, просто обновляем профиль
+        setCredits(user.credits);
+        loadProjects(newToken);
+      }
   };
 
   const handleLogout = () => {
@@ -896,8 +917,25 @@ export default function App() {
   const handleRestore = async () => {
     if (!croppedImage) return;
     
+    // Проверяем виртуальные или реальные кредиты
+    const currentCredits = token ? credits : 3; // Для неавторизованных используем виртуальные 3 звезды
+    if (currentCredits < 1) {
+        if (token) {
+          triggerCreditError();
+        } else {
+          // Для неавторизованных показываем регистрацию
+          setIsRestoringInProgress(true);
+          setIsRestoring(true);
+          setStep(AppStep.WORKBENCH);
+          setViewMode(ViewMode.RESTORED);
+        }
+        return;
+    }
+
     // Если пользователь не зарегистрирован, начинаем процесс и показываем регистрацию
     if (!token) {
+      // Списываем виртуальную звезду
+      setCredits(prev => prev - 1);
       setIsRestoringInProgress(true);
       setIsRestoring(true);
       setStep(AppStep.WORKBENCH);
@@ -908,6 +946,7 @@ export default function App() {
       return;
     }
 
+    // Для авторизованных пользователей
     if (credits < 1) {
         triggerCreditError();
         return;
@@ -962,7 +1001,6 @@ export default function App() {
   const handleLoginDuringRestore = async (newToken: string, user: any) => {
     setToken(newToken);
     localStorage.setItem('token', newToken);
-    setCredits(user.credits);
     
     // Если была начата генерация, продолжаем её
     if (isRestoringInProgress && croppedImage) {
@@ -971,8 +1009,11 @@ export default function App() {
         const blob = await res.blob();
         const file = new File([blob], "upload.jpg", { type: "image/jpeg" });
 
+        // Пользователь уже потратил 1 виртуальную звезду, поэтому у него должно остаться 2
+        // Но на сервере у нового пользователя 3 звезды, поэтому списываем еще 1
         const { project, creditsLeft } = await API.restorePhoto(newToken, file);
         
+        // Обновляем кредиты (должно быть 2, так как 1 уже потрачена виртуально)
         setCredits(creditsLeft);
         setCurrentProjectId(project.id);
         setRestoredImage(project.restoredImage);
@@ -991,16 +1032,32 @@ export default function App() {
         }
       } catch (error) {
         console.error("Restoration failed after login", error);
-        alert("Failed to restore image after login.");
+        const errorMsg = language === 'ru' 
+          ? 'Не удалось восстановить изображение после регистрации. Попробуйте еще раз.'
+          : 'Failed to restore image after login. Please try again.';
+        alert(errorMsg);
         setIsRestoring(false);
         setIsRestoringInProgress(false);
         refreshProfile();
       }
+    } else {
+      // Если генерация не была начата, просто обновляем профиль
+      setCredits(user.credits);
+      loadProjects(newToken);
     }
   };
 
   const handleGenerateVideo = async () => {
-    if (!currentProjectId || !token || selectedPromptIndices.length === 0) return;
+    if (!currentProjectId || selectedPromptIndices.length === 0) return;
+    
+    // Для неавторизованных пользователей требуем регистрацию
+    if (!token) {
+      alert(language === 'ru' 
+        ? 'Для генерации видео необходимо зарегистрироваться'
+        : 'You need to sign up to generate video');
+      navigate('/auth');
+      return;
+    }
     
     const cost = 3; // Fixed cost for simplicity in MVP, or server logic
     if (credits < cost) {
@@ -1442,49 +1499,115 @@ export default function App() {
       return null;
   }
 
-  // If no token, show Auth Screen
-  // Если идет генерация, показываем AuthScreen поверх процесса
-  if (!token || (isRestoringInProgress && !token)) {
+  // Если идет генерация без регистрации, показываем модальное окно регистрации поверх процесса
+  if (isRestoringInProgress && !token) {
       return (
         <div className="h-screen w-screen bg-zinc-950 text-white relative overflow-hidden flex flex-col">
             <div className="noise-bg" />
             <div className="noise-overlay" />
-            {isRestoringInProgress ? (
-                <>
-                    {/* Показываем процесс генерации на фоне */}
-                    <div className="absolute inset-0 flex flex-col items-center justify-center space-y-6 opacity-30">
-                        <div className="relative w-24 h-24">
-                            <div className="absolute inset-0 border-4 border-zinc-800 rounded-full"></div>
-                            <div className="absolute inset-0 border-4 border-white rounded-full border-t-transparent animate-spin"></div>
-                            <Wand2 size={32} className="absolute inset-0 m-auto text-white animate-pulse" />
-                        </div>
-                        <h3 className="text-xl font-bold animate-pulse">
-                            {language === 'ru' ? 'Восстановление...' : 'Restoring...'}
-                        </h3>
+            
+            {/* Показываем процесс генерации на фоне */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center space-y-6 opacity-30">
+                <div className="relative w-24 h-24">
+                    <div className="absolute inset-0 border-4 border-zinc-800 rounded-full"></div>
+                    <div className="absolute inset-0 border-4 border-white rounded-full border-t-transparent animate-spin"></div>
+                    <Wand2 size={32} className="absolute inset-0 m-auto text-white animate-pulse" />
+                </div>
+                <h3 className="text-xl font-bold animate-pulse">
+                    {language === 'ru' ? 'Восстановление...' : 'Restoring...'}
+                </h3>
+            </div>
+            
+            {/* Модальное окно регистрации */}
+            <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/80 backdrop-blur-sm">
+                <div className="w-full max-w-md p-6">
+                    <div className="bg-zinc-900/95 border border-zinc-800 rounded-3xl p-8 shadow-2xl">
+                        <h2 className="text-2xl font-bold mb-4 text-center">
+                            {language === 'ru' ? 'Зарегистрируйтесь, чтобы увидеть результат' : 'Sign up to see the result'}
+                        </h2>
+                        <p className="text-zinc-400 text-sm mb-6 text-center">
+                            {language === 'ru' 
+                                ? 'Процесс восстановления уже начат. Зарегистрируйтесь, чтобы увидеть результат. У вас останется 2 звезды.'
+                                : 'Restoration process has started. Sign up to see the result. You will have 2 stars left.'}
+                        </p>
+                        <AuthScreen 
+                            onLogin={handleLoginDuringRestore} 
+                            language={language} 
+                        />
                     </div>
-                    {/* Модальное окно регистрации */}
-                    <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/80 backdrop-blur-sm">
-                        <div className="w-full max-w-md p-6">
-                            <div className="bg-zinc-900/95 border border-zinc-800 rounded-3xl p-8 shadow-2xl">
-                                <h2 className="text-2xl font-bold mb-4 text-center">
-                                    {language === 'ru' ? 'Зарегистрируйтесь, чтобы увидеть результат' : 'Sign up to see the result'}
-                                </h2>
-                                <p className="text-zinc-400 text-sm mb-6 text-center">
-                                    {language === 'ru' 
-                                        ? 'Процесс восстановления уже начат. Зарегистрируйтесь, чтобы увидеть результат.'
-                                        : 'Restoration process has started. Sign up to see the result.'}
-                                </p>
-                                <AuthScreen 
-                                    onLogin={handleLoginDuringRestore} 
-                                    language={language} 
-                                />
-                            </div>
-                        </div>
+                </div>
+            </div>
+        </div>
+      )
+  }
+  
+  // Если нет токена и нет процесса генерации, показываем интерфейс с возможностью начать работу
+  if (!token) {
+      return (
+        <div className="h-screen w-screen bg-zinc-950 text-white relative overflow-hidden flex flex-col">
+            <div className="noise-bg" />
+            <div className="noise-overlay" />
+            
+            <Header 
+              showBack={step !== AppStep.UPLOAD}
+              onBack={handleBack}
+              onMenu={() => setIsMenuOpen(true)}
+              credits={credits}
+              onAddCredits={() => navigate('/plans')}
+              highlightCredits={highlightCredits}
+              onLogout={() => {}}
+            />
+            
+            <Sidebar 
+              isOpen={isMenuOpen} 
+              onClose={() => setIsMenuOpen(false)} 
+              activeTab={activeTab}
+              onSelectTab={(tab) => {
+                  const pathMap: Record<AppTab, string> = {
+                      [AppTab.HOME]: '/',
+                      [AppTab.PROJECTS]: '/projects',
+                      [AppTab.GALLERY]: '/gallery',
+                      [AppTab.PLANS]: '/plans',
+                      [AppTab.PROFILE]: '/profile',
+                  };
+                  navigate(pathMap[tab]);
+              }}
+              onNewProject={startNewProject}
+              onLogout={() => {}}
+              onProfile={() => navigate('/auth')}
+              language={language}
+              onLanguageChange={async (lang) => {
+                  setLanguage(lang);
+                  localStorage.setItem('language', lang);
+              }}
+            />
+            
+            <main className="flex-1 flex flex-col overflow-hidden relative">
+              <Routes>
+                <Route path="/" element={
+                  <>
+                    {renderNavWidgets()}
+                    {renderContent()}
+                  </>
+                } />
+                <Route path="/plans" element={
+                  <PlansView 
+                    onBuy={handleBuySubscription} 
+                    onBuyStars={handleBuyStars}
+                    language={language} 
+                    hasSubscription={hasSubscription}
+                  />
+                } />
+                <Route path="/auth" element={
+                  <div className="w-full h-full flex items-center justify-center p-6">
+                    <div className="w-full max-w-md">
+                      <AuthScreen onLogin={handleLogin} language={language} />
                     </div>
-                </>
-            ) : (
-                <AuthScreen onLogin={handleLogin} language={language} />
-            )}
+                  </div>
+                } />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </main>
         </div>
       )
   }
