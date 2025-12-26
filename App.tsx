@@ -1268,7 +1268,7 @@ export default function App() {
                                             onClick={handleGenerateVideo}
                                             className="w-full text-sm"
                                     >
-                                        {t('generateVideoStars', language, { count: selectedPromptIndices.length * 3 })}
+                                        {t('generateVideoStars', language, { count: 3 })}
                                     </Button>
                                 </div>
                             )}
