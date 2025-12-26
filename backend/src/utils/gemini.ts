@@ -1,23 +1,15 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
 import Replicate from 'replicate';
 
 // API ключи из переменных окружения
-const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN; // Для восстановления изображений и генерации видео
-const GOOGLE_GENAI_API_KEY = process.env.GOOGLE_GENAI_API_KEY; // Для генерации промптов (Gemini 3 Flash)
+const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN; // Для восстановления изображений, генерации промптов и видео
 
 if (!REPLICATE_API_TOKEN) {
   console.error('❌ REPLICATE_API_TOKEN не установлен в переменных окружения!');
   throw new Error('REPLICATE_API_TOKEN не установлен. Установите переменную окружения REPLICATE_API_TOKEN.');
 }
-
-if (!GOOGLE_GENAI_API_KEY) {
-  console.warn('⚠️ GOOGLE_GENAI_API_KEY не установлен. Генерация промптов будет недоступна.');
-}
-
-const genAI = GOOGLE_GENAI_API_KEY ? new GoogleGenerativeAI(GOOGLE_GENAI_API_KEY) : null;
 
 // Промпт для восстановления фотографий
 const RESTORE_SYSTEM_PROMPT = `You are a professional photo restoration AI. Analyze this vintage or damaged photo and provide detailed restoration instructions. The image needs to be enhanced to look like a modern high-quality photo. Focus on:
@@ -169,41 +161,78 @@ The result should look like a professional high-quality photograph with vibrant,
 }
 
 /**
- * Генерирует промпты для анимации используя Gemini 3 Flash Preview
- * Модель: gemini-3-flash-preview
+ * Генерирует промпты для анимации используя Replicate openai/gpt-5-nano
+ * Модель: openai/gpt-5-nano (Vision model)
  * Задача: «Посмотреть» на восстановленное фото и придумать 4 варианта того, как это фото могло бы ожить
  */
 export async function generateAnimationPrompts(restoredImagePath: string): Promise<string[]> {
   try {
-    console.log('🔄 Генерация промптов для анимации через Gemini 3 Flash Preview...');
+    console.log('🔄 Генерация промптов для анимации через Replicate openai/gpt-5-nano...');
+    console.log('📋 API Token установлен:', REPLICATE_API_TOKEN ? '✅ Да' : '❌ Нет');
     
-    if (!genAI) {
-      throw new Error('GOOGLE_GENAI_API_KEY не установлен. Генерация промптов требует Google Gemini API.');
+    if (!REPLICATE_API_TOKEN) {
+      throw new Error('REPLICATE_API_TOKEN не установлен в переменных окружения');
     }
-    
+
+    const replicate = new Replicate({
+      auth: REPLICATE_API_TOKEN,
+    });
+
+    // Читаем изображение и конвертируем в base64 data URI
     const imageData = fs.readFileSync(restoredImagePath);
     const base64Image = imageData.toString('base64');
     const mimeType = restoredImagePath.endsWith('.png') ? 'image/png' : 'image/jpeg';
+    const imageDataUri = `data:${mimeType};base64,${base64Image}`;
     
-    // Используем Gemini 3 Flash Preview
-    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
+    console.log('📸 Размер изображения:', imageData.length, 'байт');
     
     // Промпт для генерации идей (с учетом языка пользователя)
     // Пока всегда на английском для промпта, но подсказки могут быть на русском
     const prompt = `Analyze this photo. Describe 4 simple, positive, and friendly animation ideas to bring this scene to life. Each idea should describe natural, gentle movements like slight smile, blinking, small head movements, or subtle gestures. Do NOT include camera movements (zoom, pan, etc.) or negative actions. Movements should be natural, smooth, and contextually appropriate to the photo. Return only a JSON array of 4 short English phrases.`;
     
-    const result = await model.generateContent([
-      { text: prompt },
-      {
-        inlineData: {
-          data: base64Image,
-          mimeType: mimeType,
-        },
-      },
-    ]);
+    console.log('📝 Промпт для генерации:', prompt.substring(0, 200) + '...');
 
-    const response = await result.response;
-    const text = response.text();
+    // Запускаем генерацию через Replicate
+    console.log('🚀 Отправка запроса к Replicate openai/gpt-5-nano...');
+    
+    const output = await replicate.run(
+      "openai/gpt-5-nano",
+      {
+        input: {
+          prompt: prompt,
+          image: imageDataUri, // Может быть image или image_input в зависимости от модели
+        }
+      }
+    );
+
+    console.log('✅ Получен ответ от модели');
+    console.log('📋 Raw output type:', typeof output);
+    console.log('📋 Raw output:', JSON.stringify(output, null, 2).substring(0, 500));
+
+    // Извлекаем текст из ответа
+    let text: string;
+    const outputAny = output as any;
+    
+    if (typeof outputAny === 'string') {
+      text = outputAny;
+    } else if (Array.isArray(outputAny) && outputAny.length > 0) {
+      text = typeof outputAny[0] === 'string' ? outputAny[0] : String(outputAny[0]);
+    } else if (outputAny && typeof outputAny === 'object') {
+      // Пытаемся найти текст в объекте
+      if ('text' in outputAny && typeof outputAny.text === 'string') {
+        text = outputAny.text;
+      } else if ('content' in outputAny && typeof outputAny.content === 'string') {
+        text = outputAny.content;
+      } else if ('message' in outputAny && typeof outputAny.message === 'string') {
+        text = outputAny.message;
+      } else {
+        // Пытаемся извлечь текст из JSON
+        const outputStr = JSON.stringify(outputAny);
+        text = outputStr;
+      }
+    } else {
+      text = String(outputAny);
+    }
     
     console.log('Ответ модели для промптов:', text.substring(0, 300));
     
@@ -236,13 +265,20 @@ export async function generateAnimationPrompts(restoredImagePath: string): Promi
       
       if (lines.length >= 4) {
         console.log('✅ Извлечено', lines.length, 'промптов из текста');
-      return lines.slice(0, 4);
+        return lines.slice(0, 4);
       }
     }
     
     throw new Error('Не удалось сгенерировать 4 промпта');
   } catch (error: any) {
     console.error('❌ Ошибка при генерации промптов:', error);
+    console.error('Детали ошибки:', error.message);
+    
+    if (error.response) {
+      console.error('📋 HTTP статус:', error.response.status);
+      console.error('📋 Ответ API:', JSON.stringify(error.response.data, null, 2));
+    }
+    
     throw new Error(`Не удалось сгенерировать промпты для анимации: ${error.message}`);
   }
 }
