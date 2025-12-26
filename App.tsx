@@ -1177,13 +1177,138 @@ export default function App() {
       return null;
   }
 
-  // If no token, show Auth Screen
+  // Если идет генерация без регистрации, показываем модальное окно регистрации поверх процесса
+  if (isRestoringInProgress && !token) {
+      return (
+        <div className="h-screen w-screen bg-zinc-950 text-white relative overflow-hidden flex flex-col">
+            <div className="noise-bg" />
+            <div className="noise-overlay" />
+            
+            {/* Показываем процесс генерации на фоне */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center space-y-6 opacity-30">
+                <div className="relative w-24 h-24">
+                    <div className="absolute inset-0 border-4 border-zinc-800 rounded-full"></div>
+                    <div className="absolute inset-0 border-4 border-white rounded-full border-t-transparent animate-spin"></div>
+                    <Wand2 size={32} className="absolute inset-0 m-auto text-white animate-pulse" />
+                </div>
+                <h3 className="text-xl font-bold animate-pulse">
+                    {language === 'ru' ? 'Восстановление...' : 'Restoring...'}
+                </h3>
+            </div>
+            
+            {/* Модальное окно регистрации */}
+            <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/80 backdrop-blur-sm">
+                <div className="w-full max-w-md p-6">
+                    <div className="bg-zinc-900/95 border border-zinc-800 rounded-3xl p-8 shadow-2xl">
+                        <h2 className="text-2xl font-bold mb-4 text-center">
+                            {language === 'ru' ? 'Зарегистрируйтесь, чтобы увидеть результат' : 'Sign up to see the result'}
+                        </h2>
+                        <p className="text-zinc-400 text-sm mb-6 text-center">
+                            {language === 'ru' 
+                                ? 'Процесс восстановления уже начат. Зарегистрируйтесь, чтобы увидеть результат.'
+                                : 'Restoration process has started. Sign up to see the result.'}
+                        </p>
+                        <AuthScreen 
+                            onLogin={handleLogin} 
+                            language={language} 
+                        />
+                    </div>
+                </div>
+            </div>
+        </div>
+      )
+  }
+  
+  // Если нет токена и нет процесса генерации, показываем интерфейс с возможностью начать работу
   if (!token) {
       return (
         <div className="h-screen w-screen bg-zinc-950 text-white relative overflow-hidden flex flex-col">
             <div className="noise-bg" />
             <div className="noise-overlay" />
-            <AuthScreen onLogin={handleLogin} language={language} />
+            
+            <Header 
+              showBack={step !== AppStep.UPLOAD}
+              onBack={handleBack}
+              onMenu={() => setIsMenuOpen(true)}
+              credits={0}
+              onAddCredits={() => navigate('/plans')}
+              highlightCredits={false}
+              onLogout={() => {}}
+            />
+            
+            <Sidebar 
+              isOpen={isMenuOpen} 
+              onClose={() => setIsMenuOpen(false)} 
+              activeTab={activeTab}
+              onSelectTab={(tab) => {
+                  const pathMap: Record<AppTab, string> = {
+                      [AppTab.HOME]: '/',
+                      [AppTab.PROJECTS]: '/projects',
+                      [AppTab.GALLERY]: '/gallery',
+                      [AppTab.PLANS]: '/plans',
+                      [AppTab.PROFILE]: '/profile',
+                  };
+                  navigate(pathMap[tab] || '/');
+              }}
+              onNewProject={startNewProject}
+              onLogout={() => {}}
+              onProfile={() => navigate('/auth')}
+              language={language}
+              onLanguageChange={async (lang) => {
+                  setLanguage(lang);
+                  localStorage.setItem('language', lang);
+              }}
+              token={null}
+            />
+            
+            <main className="flex-1 flex flex-col overflow-hidden relative">
+              <Routes>
+                <Route path="/" element={
+                  <>
+                    {renderNavWidgets()}
+                    {renderContent()}
+                  </>
+                } />
+                <Route path="/plans" element={
+                  <PlansView onBuy={handleBuyStars} language={language} />
+                } />
+                <Route path="/auth" element={
+                  <div className="w-full h-full flex items-center justify-center p-6">
+                    <div className="w-full max-w-md">
+                      <AuthScreen onLogin={handleLogin} language={language} />
+                    </div>
+                  </div>
+                } />
+                <Route path="/terms" element={
+                  <div className="flex-1 w-full h-full">
+                    <iframe 
+                      src="https://pub-9bb081fe61954f5dbc7ccfcbb278f817.r2.dev/Doc/Terms_and_Conditions_RetroImprover.pdf" 
+                      className="w-full h-full border-0"
+                      title="Terms and Conditions"
+                    />
+                  </div>
+                } />
+                <Route path="/privacy" element={
+                  <div className="flex-1 w-full h-full">
+                    <iframe 
+                      src="https://pub-9bb081fe61954f5dbc7ccfcbb278f817.r2.dev/Doc/Privacy_Policy_RetroImprover.pdf" 
+                      className="w-full h-full border-0"
+                      title="Privacy Policy"
+                    />
+                  </div>
+                } />
+                <Route path="/refund" element={
+                  <div className="flex-1 w-full h-full">
+                    <iframe 
+                      src="https://pub-9bb081fe61954f5dbc7ccfcbb278f817.r2.dev/Doc/Refund_Policy_RetroImprover.pdf" 
+                      className="w-full h-full border-0"
+                      title="Refund Policy"
+                    />
+                  </div>
+                } />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </main>
         </div>
       )
   }
