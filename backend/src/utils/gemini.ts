@@ -88,7 +88,7 @@ The result should look like a professional high-quality photograph with vibrant,
       {
         input: {
           prompt: restorePrompt,
-          image_input: imageDataUri,
+          image_input: [imageDataUri], // Должен быть массивом
         }
       }
     );
