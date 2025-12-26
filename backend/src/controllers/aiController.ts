@@ -180,10 +180,18 @@ export const generatePrompts = async (req: Request, res: Response): Promise<void
       return;
     }
 
+    // Получаем язык пользователя
+    const user = await prisma.user.findUnique({
+      where: { id: authReq.user.userId },
+      select: { language: true },
+    });
+
+    const userLanguage = (user?.language || 'en') as 'en' | 'ru';
+
     // Генерируем промпты
     let prompts: string[];
     try {
-      prompts = await generateAnimationPrompts(localRestoredImagePath);
+      prompts = await generateAnimationPrompts(localRestoredImagePath, userLanguage);
       
       if (!prompts || prompts.length < 4) {
         throw new Error('Не удалось сгенерировать 4 промпта');

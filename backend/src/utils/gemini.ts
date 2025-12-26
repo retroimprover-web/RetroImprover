@@ -164,8 +164,11 @@ The result should look like a professional high-quality photograph with vibrant,
  * Генерирует промпты для анимации используя Replicate openai/gpt-5-nano
  * Модель: openai/gpt-5-nano (Vision model)
  * Задача: «Посмотреть» на восстановленное фото и придумать 4 варианта того, как это фото могло бы ожить
+ * @param restoredImagePath - путь к восстановленному изображению
+ * @param userLanguage - язык пользователя ('en' или 'ru')
+ * @returns Массив из 4 промптов (на русском, если userLanguage === 'ru', иначе на английском)
  */
-export async function generateAnimationPrompts(restoredImagePath: string): Promise<string[]> {
+export async function generateAnimationPrompts(restoredImagePath: string, userLanguage: 'en' | 'ru' = 'en'): Promise<string[]> {
   try {
     console.log('🔄 Генерация промптов для анимации через Replicate openai/gpt-5-nano...');
     console.log('📋 API Token установлен:', REPLICATE_API_TOKEN ? '✅ Да' : '❌ Нет');
@@ -186,9 +189,9 @@ export async function generateAnimationPrompts(restoredImagePath: string): Promi
     
     console.log('📸 Размер изображения:', imageData.length, 'байт');
     
-    // Промпт для генерации идей (с учетом языка пользователя)
-    // Пока всегда на английском для промпта, но подсказки могут быть на русском
-    const prompt = `Analyze this photo. Describe 4 simple, positive, and friendly animation ideas to bring this scene to life. Each idea should describe natural, gentle movements like slight smile, blinking, small head movements, or subtle gestures. Do NOT include camera movements (zoom, pan, etc.) or negative actions. Movements should be natural, smooth, and contextually appropriate to the photo. Return only a JSON array of 4 short English phrases.`;
+    // Промпт для генерации идей (всегда на английском для модели)
+    // Модель должна вернуть короткие фразы (2-4 слова), которые потом будут переведены на русский если нужно
+    const prompt = `Analyze this photo. Describe 4 simple, positive, and friendly animation ideas to bring this scene to life. Each idea should be VERY SHORT (2-4 words only). Describe natural, gentle movements like slight smile, blinking, small head movements, or subtle gestures. Do NOT include camera movements (zoom, pan, etc.) or negative actions. Movements should be natural, smooth, and contextually appropriate to the photo. Return only a JSON array of 4 very short English phrases (2-4 words each). Examples: "gentle smile", "soft blink", "slight nod", "hair sway".`;
     
     console.log('📝 Промпт для генерации:', prompt.substring(0, 200) + '...');
 
@@ -259,11 +262,11 @@ export async function generateAnimationPrompts(restoredImagePath: string): Promi
           const prompts = JSON.parse(jsonMatch[0]);
           if (Array.isArray(prompts) && prompts.length >= 4) {
             console.log('✅ Успешно сгенерировано', prompts.length, 'промптов из JSON');
-            return prompts.slice(0, 4).map((p: any) => String(p).trim());
+            return processPrompts(prompts.slice(0, 4).map((p: any) => String(p).trim()), userLanguage);
           } else if (Array.isArray(prompts) && prompts.length > 0) {
             // Если меньше 4, но есть промпты, возвращаем что есть
             console.log('⚠️ Сгенерировано только', prompts.length, 'промптов, но используем их');
-            return prompts.map((p: any) => String(p).trim());
+            return processPrompts(prompts.map((p: any) => String(p).trim()), userLanguage);
           }
         } catch (e) {
           console.warn('Не удалось распарсить найденный JSON:', e);
@@ -275,10 +278,10 @@ export async function generateAnimationPrompts(restoredImagePath: string): Promi
         const prompts = JSON.parse(cleanedText);
         if (Array.isArray(prompts) && prompts.length >= 4) {
           console.log('✅ Успешно сгенерировано', prompts.length, 'промптов из полного JSON');
-          return prompts.slice(0, 4).map((p: any) => String(p).trim());
+          return processPrompts(prompts.slice(0, 4).map((p: any) => String(p).trim()), userLanguage);
         } else if (Array.isArray(prompts) && prompts.length > 0) {
           console.log('⚠️ Сгенерировано только', prompts.length, 'промптов, но используем их');
-          return prompts.map((p: any) => String(p).trim());
+          return processPrompts(prompts.map((p: any) => String(p).trim()), userLanguage);
         }
       } catch (e) {
         console.warn('Не удалось распарсить весь текст как JSON:', e);
@@ -296,10 +299,10 @@ export async function generateAnimationPrompts(restoredImagePath: string): Promi
     if (quotedStrings && quotedStrings.length >= 4) {
       const prompts = quotedStrings
         .map(s => s.replace(/^"|"$/g, '').replace(/\\"/g, '"').replace(/\\n/g, ' ').trim())
-        .filter(s => s.length > 10);
+        .filter(s => s.length > 5); // Уменьшили минимальную длину для коротких промптов
       if (prompts.length >= 4) {
         console.log('✅ Извлечено', prompts.length, 'промптов из строк в кавычках');
-        return prompts.slice(0, 4);
+        return processPrompts(prompts.slice(0, 4), userLanguage);
       }
     }
     
@@ -307,11 +310,12 @@ export async function generateAnimationPrompts(restoredImagePath: string): Promi
     const lines = text
       .split(/[,\n]/)
       .map(line => line.trim().replace(/^[\d.\-\s]*/, '').replace(/[\[\]"]/g, '').trim())
-      .filter(line => line.length > 10 && !line.match(/^(with|a|the|and|or|to|of|in|on|at)$/i));
+      .filter(line => line.length > 3 && !line.match(/^(with|a|the|and|or|to|of|in|on|at)$/i)); // Уменьшили минимальную длину
     
     if (lines.length >= 4) {
       console.log('✅ Извлечено', lines.length, 'промптов из текста');
-      return lines.slice(0, 4);
+      const extractedPrompts = lines.slice(0, 4);
+      return processPrompts(extractedPrompts, userLanguage);
     }
     
     throw new Error('Не удалось сгенерировать 4 промпта');
@@ -326,6 +330,125 @@ export async function generateAnimationPrompts(restoredImagePath: string): Promi
     
     throw new Error(`Не удалось сгенерировать промпты для анимации: ${error.message}`);
   }
+}
+
+/**
+ * Упрощает промпты до 2-4 слов и переводит на русский если нужно
+ */
+function processPrompts(prompts: string[], userLanguage: 'en' | 'ru'): string[] {
+  const processed = prompts.map(prompt => {
+    // Упрощаем промпт до 2-4 слов
+    const words = prompt.trim().split(/\s+/).filter(w => w.length > 0);
+    const simplified = words.slice(0, 4).join(' '); // Берем первые 4 слова
+    
+    if (userLanguage === 'ru') {
+      // Переводим на русский
+      return translateToRussian(simplified);
+    }
+    
+    return simplified;
+  });
+  
+  return processed;
+}
+
+/**
+ * Простой переводчик английских фраз на русский для анимационных промптов
+ */
+function translateToRussian(englishPhrase: string): string {
+  const lowerPhrase = englishPhrase.toLowerCase();
+  
+  // Словарь переводов для анимационных промптов
+  const translations: Record<string, string> = {
+    // Движения
+    'smile': 'улыбка',
+    'gentle smile': 'мягкая улыбка',
+    'slight smile': 'легкая улыбка',
+    'soft smile': 'нежная улыбка',
+    'blink': 'моргание',
+    'blinking': 'моргание',
+    'soft blink': 'мягкое моргание',
+    'gentle blink': 'нежное моргание',
+    'nod': 'кивок',
+    'slight nod': 'легкий кивок',
+    'gentle nod': 'мягкий кивок',
+    'head movement': 'движение головы',
+    'head turn': 'поворот головы',
+    'slight head turn': 'легкий поворот головы',
+    'hair sway': 'колыхание волос',
+    'hair movement': 'движение волос',
+    'gentle hair sway': 'мягкое колыхание волос',
+    'clothing sway': 'колыхание одежды',
+    'breeze': 'ветерок',
+    'gentle breeze': 'легкий ветерок',
+    'look around': 'оглядывается',
+    'looking around': 'оглядывается',
+    'looks around': 'оглядывается',
+    'breathe': 'дыхание',
+    'breathing': 'дыхание',
+    'gentle breathing': 'мягкое дыхание',
+    'subtle movement': 'тонкое движение',
+    'slight movement': 'легкое движение',
+    'natural movement': 'естественное движение',
+  };
+  
+  // Пытаемся найти точное совпадение
+  if (translations[lowerPhrase]) {
+    return translations[lowerPhrase];
+  }
+  
+  // Пытаемся найти частичное совпадение
+  for (const [key, value] of Object.entries(translations)) {
+    if (lowerPhrase.includes(key)) {
+      // Заменяем английские слова на русские
+      let translated = lowerPhrase;
+      const words = key.split(' ');
+      words.forEach(word => {
+        if (translations[word]) {
+          translated = translated.replace(new RegExp(`\\b${word}\\b`, 'gi'), translations[word]);
+        }
+      });
+      return translated;
+    }
+  }
+  
+  // Если не нашли перевод, используем простой словарь слов
+  const wordTranslations: Record<string, string> = {
+    'gentle': 'мягкое',
+    'soft': 'нежное',
+    'slight': 'легкое',
+    'small': 'небольшое',
+    'subtle': 'тонкое',
+    'natural': 'естественное',
+    'smile': 'улыбка',
+    'blink': 'моргание',
+    'nod': 'кивок',
+    'movement': 'движение',
+    'turn': 'поворот',
+    'hair': 'волосы',
+    'clothing': 'одежда',
+    'sway': 'колыхание',
+    'breeze': 'ветерок',
+    'look': 'взгляд',
+    'around': 'вокруг',
+    'breathe': 'дыхание',
+    'head': 'голова',
+    'and': 'и',
+    'a': '',
+    'the': '',
+    'with': 'с',
+    'of': '',
+    'in': 'в',
+    'on': 'на',
+  };
+  
+  // Переводим каждое слово
+  const words = lowerPhrase.split(/\s+/);
+  const translatedWords = words
+    .map(word => wordTranslations[word] || word)
+    .filter(w => w.length > 0);
+  
+  return translatedWords.join(' ');
 }
 
 /** 
