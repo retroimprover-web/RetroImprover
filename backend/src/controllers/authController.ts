@@ -26,12 +26,12 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     // Хешируем пароль
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Создаем пользователя
+    // Создаем пользователя с 3 начальными звездами
     const user = await prisma.user.create({
       data: {
         email,
         passwordHash,
-        credits: 5,
+        credits: 3,
       },
     });
 
@@ -117,6 +117,9 @@ export const getMe = async (req: Request, res: Response): Promise<void> => {
         email: true,
         credits: true,
         language: true,
+        subscriptionType: true,
+        subscriptionExpiresAt: true,
+        purchasedStars: true,
         createdAt: true,
       },
     });

@@ -443,41 +443,208 @@ const ProfileView = ({ email, credits, language, onLanguageChange, onClose }: {
     </div>
 );
 
-const PlansView = ({ onBuy, language }: { onBuy: (planId: string, stars: number) => void, language: Language }) => (
-    <div className="w-full h-full flex flex-col items-center justify-center p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold mb-2">{t('getMoreStars', language)}</h2>
-            <p className="text-zinc-400">{t('generateHighQuality', language)}</p>
-        </div>
-        
-        <div className="w-full max-w-sm space-y-3">
-            {[
-                { id: 'starter', price: 'Free', stars: 3, label: t('starter', language), desc: t('tryItOut', language) },
-                { id: 'creator', price: '$9.99', stars: 20, label: t('creator', language), desc: t('bestForHobbyists', language) },
-                { id: 'pro', price: '$25.99', stars: 50, label: t('pro', language), desc: t('heavyUsage', language) },
-            ].map((plan) => (
-            <div key={plan.id} className="group relative p-4 rounded-2xl border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-900 hover:border-zinc-600 transition-all flex justify-between items-center overflow-hidden cursor-pointer"
-                 onClick={() => onBuy(plan.id, plan.stars)}>
-                <div className="relative z-10">
-                    <div className="flex items-center gap-2 mb-1">
-                         <span className="font-bold text-white text-lg">{plan.label}</span>
-                         {plan.id === 'mid' && <span className="text-[10px] bg-purple-500 text-white px-2 py-0.5 rounded-full font-bold">{t('popular', language)}</span>}
-                    </div>
-                    <div className="flex items-center gap-1 text-yellow-400 font-bold">
-                        <Sparkles size={14} fill="currentColor"/> {plan.stars} {t('stars', language)}
-                    </div>
+const PlansView = ({ 
+    onBuy, 
+    onBuyStars, 
+    language, 
+    hasSubscription 
+}: { 
+    onBuy: (planId: string, stars: number, price: number) => void,
+    onBuyStars: (stars: number, price: number) => void,
+    language: Language,
+    hasSubscription: boolean
+}) => {
+    const subscriptions = [
+        { 
+            id: 'week_trial', 
+            price: 5.99, 
+            stars: 30, 
+            label: language === 'ru' ? 'Неделя' : 'Week Trial',
+            period: language === 'ru' ? '7 дней' : '7 days',
+            desc: language === 'ru' ? 'Попробуйте все возможности' : 'Try all features',
+            popular: false
+        },
+        { 
+            id: 'month', 
+            price: 13.99, 
+            stars: 90, 
+            label: language === 'ru' ? 'Месяц' : 'Month',
+            period: language === 'ru' ? '30 дней' : '30 days',
+            desc: language === 'ru' ? 'Лучший выбор' : 'Best choice',
+            popular: true
+        },
+        { 
+            id: 'yearly', 
+            price: 83.99, 
+            stars: 750, 
+            label: language === 'ru' ? 'Год' : 'Yearly',
+            period: language === 'ru' ? '365 дней' : '365 days',
+            desc: language === 'ru' ? '$6.99/месяц' : '$6.99/month',
+            popular: false,
+            savings: language === 'ru' ? 'Экономия 50%' : 'Save 50%'
+        },
+    ];
+
+    const additionalStars = [
+        { stars: 20, price: 3.99, discount: null },
+        { stars: 50, price: 8.99, discount: '10%' },
+        { stars: 100, price: 14.99, discount: '25%' },
+    ];
+
+    return (
+        <div className="w-full h-full overflow-y-auto p-6 pt-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="max-w-4xl mx-auto">
+                {/* Subscriptions Section */}
+                <div className="text-center mb-8">
+                    <h2 className="text-3xl font-bold mb-2 bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
+                        {language === 'ru' ? 'Выберите подписку' : 'Choose Subscription'}
+                    </h2>
+                    <p className="text-zinc-400 text-sm">
+                        {language === 'ru' 
+                            ? 'Подписка автоматически продлевается. Звезды из подписки не переносятся на следующий период.'
+                            : 'Subscription auto-renews. Subscription stars do not carry over to the next period.'}
+                    </p>
                 </div>
-                <div className="relative z-10 flex flex-col items-end">
-                    <div className="text-xl font-bold text-white">{plan.price}</div>
-                    <div className="text-xs text-zinc-500">{plan.desc}</div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
+                    {subscriptions.map((plan) => (
+                        <div 
+                            key={plan.id} 
+                            className={`group relative p-6 rounded-2xl border-2 transition-all cursor-pointer overflow-hidden ${
+                                plan.popular 
+                                    ? 'border-yellow-400 bg-gradient-to-br from-yellow-400/10 to-zinc-900 scale-105' 
+                                    : 'border-zinc-800 bg-zinc-900/50 hover:bg-zinc-900 hover:border-zinc-600'
+                            }`}
+                            onClick={() => onBuy(plan.id, plan.stars, plan.price)}
+                        >
+                            {plan.popular && (
+                                <div className="absolute top-4 right-4">
+                                    <span className="text-[10px] bg-yellow-400 text-black px-2 py-1 rounded-full font-bold">
+                                        {language === 'ru' ? 'ПОПУЛЯРНО' : 'POPULAR'}
+                                    </span>
+                                </div>
+                            )}
+                            {plan.savings && (
+                                <div className="absolute top-4 right-4">
+                                    <span className="text-[10px] bg-green-500 text-white px-2 py-1 rounded-full font-bold">
+                                        {plan.savings}
+                                    </span>
+                                </div>
+                            )}
+                            
+                            <div className="relative z-10">
+                                <div className="mb-4">
+                                    <div className="text-2xl font-bold text-white mb-1">{plan.label}</div>
+                                    <div className="text-sm text-zinc-400">{plan.period}</div>
+                                </div>
+                                
+                                <div className="mb-4">
+                                    <div className="flex items-baseline gap-1 mb-2">
+                                        <span className="text-3xl font-bold text-white">${plan.price}</span>
+                                        {plan.id === 'yearly' && (
+                                            <span className="text-sm text-zinc-400">/год</span>
+                                        )}
+                                    </div>
+                                    {plan.id === 'yearly' && (
+                                        <div className="text-xs text-zinc-400">
+                                            {language === 'ru' ? '$6.99/месяц' : '$6.99/month'}
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                <div className="flex items-center gap-2 text-yellow-400 font-bold mb-4">
+                                    <Sparkles size={18} fill="currentColor"/> 
+                                    <span className="text-xl">{plan.stars} ⭐</span>
+                                </div>
+                                
+                                <div className="text-xs text-zinc-500 mb-4">{plan.desc}</div>
+                                
+                                <Button className="w-full" variant="primary" size="sm">
+                                    {language === 'ru' ? 'Купить' : 'Buy'}
+                                </Button>
+                            </div>
+                            
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                        </div>
+                    ))}
                 </div>
-                {/* Hover Glow */}
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+
+                {/* Additional Stars Section - Only show if has subscription */}
+                {hasSubscription && (
+                    <>
+                        <div className="text-center mb-6">
+                            <h3 className="text-2xl font-bold mb-2">
+                                {language === 'ru' ? 'Дополнительные звезды' : 'Additional Stars'}
+                            </h3>
+                            <p className="text-zinc-400 text-sm">
+                                {language === 'ru' 
+                                    ? 'Дополнительные звезды не сгорают и остаются навсегда'
+                                    : 'Additional stars never expire and stay forever'}
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {additionalStars.map((item) => (
+                                <div 
+                                    key={item.stars}
+                                    className="group relative p-6 rounded-2xl border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-900 hover:border-zinc-600 transition-all cursor-pointer overflow-hidden"
+                                    onClick={() => onBuyStars(item.stars, item.price)}
+                                >
+                                    {item.discount && (
+                                        <div className="absolute top-4 right-4">
+                                            <span className="text-[10px] bg-green-500 text-white px-2 py-1 rounded-full font-bold">
+                                                -{item.discount}
+                                            </span>
+                                        </div>
+                                    )}
+                                    
+                                    <div className="relative z-10 text-center">
+                                        <div className="flex items-center justify-center gap-2 text-yellow-400 font-bold mb-4">
+                                            <Sparkles size={24} fill="currentColor"/> 
+                                            <span className="text-3xl">{item.stars}</span>
+                                        </div>
+                                        
+                                        <div className="mb-4">
+                                            <div className="text-2xl font-bold text-white">${item.price}</div>
+                                            {item.discount && (
+                                                <div className="text-xs text-zinc-400 line-through mt-1">
+                                                    ${(item.price / (1 - parseFloat(item.discount) / 100)).toFixed(2)}
+                                                </div>
+                                            )}
+                                        </div>
+                                        
+                                        <Button className="w-full" variant="secondary" size="sm">
+                                            {language === 'ru' ? 'Купить' : 'Buy'}
+                                        </Button>
+                                    </div>
+                                    
+                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                                </div>
+                            ))}
+                        </div>
+                    </>
+                )}
+
+                {!hasSubscription && (
+                    <div className="text-center text-zinc-500 text-sm mt-8">
+                        {language === 'ru' 
+                            ? 'Дополнительные звезды доступны только при активной подписке'
+                            : 'Additional stars are only available with an active subscription'}
+                    </div>
+                )}
+
+                {/* Auto-renewal notice */}
+                <div className="mt-8 text-center">
+                    <p className="text-xs text-zinc-500">
+                        {language === 'ru' 
+                            ? 'Подписка автоматически продлевается в конце срока. Вы можете отменить в любое время.'
+                            : 'Subscription auto-renews at the end of the period. You can cancel anytime.'}
+                    </p>
+                </div>
             </div>
-            ))}
         </div>
-    </div>
-)
+    );
+}
 
 // --- Main Application ---
 
@@ -503,6 +670,9 @@ export default function App() {
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string>('');
   const [likedMedia, setLikedMedia] = useState<any[]>([]);
+  const [hasSubscription, setHasSubscription] = useState(false);
+  const [isRestoringInProgress, setIsRestoringInProgress] = useState(false);
+  const [pendingRestoreResult, setPendingRestoreResult] = useState<any>(null);
 
   const [originalImage, setOriginalImage] = useState<string | null>(null);
   const [croppedImage, setCroppedImage] = useState<string | null>(null);
@@ -555,6 +725,13 @@ export default function App() {
         const p = await API.getProfile(token);
         setCredits(p.credits);
         setUserEmail(p.email);
+        // Проверяем наличие активной подписки
+        if (p.subscriptionType && p.subscriptionExpiresAt) {
+          const expiresAt = new Date(p.subscriptionExpiresAt);
+          setHasSubscription(expiresAt > new Date());
+        } else {
+          setHasSubscription(false);
+        }
         // Загружаем язык с сервера, если есть
         if (p.language) {
           setLanguage(p.language);
@@ -601,10 +778,54 @@ export default function App() {
       }, 1000);
   };
 
-  const handleBuyStars = (planId: string, stars: number) => {
-      // Для MVP: можно добавить звезды вручную через базу данных
-      alert(`Для добавления ${stars} звезд обратитесь к администратору или используйте базу данных.`);
-      setActiveTab(AppTab.HOME); 
+  const handleBuySubscription = async (planId: string, stars: number, price: number) => {
+      if (!token) {
+          alert(language === 'ru' ? 'Необходимо войти в систему' : 'You need to sign in');
+          return;
+      }
+
+      try {
+          // TODO: Интеграция с платежной системой (Stripe или другой)
+          // Пока просто показываем сообщение
+          alert(language === 'ru' 
+              ? `Покупка подписки ${planId} за $${price} (${stars} звезд). Интеграция с платежной системой в разработке.`
+              : `Buying subscription ${planId} for $${price} (${stars} stars). Payment integration in development.`);
+          
+          // После успешной покупки обновляем профиль
+          await refreshProfile();
+          setActiveTab(AppTab.HOME);
+      } catch (error: any) {
+          console.error('Ошибка при покупке подписки:', error);
+          alert(error.message || (language === 'ru' ? 'Ошибка при покупке подписки' : 'Error purchasing subscription'));
+      }
+  };
+
+  const handleBuyStars = async (stars: number, price: number) => {
+      if (!token) {
+          alert(language === 'ru' ? 'Необходимо войти в систему' : 'You need to sign in');
+          return;
+      }
+
+      if (!hasSubscription) {
+          alert(language === 'ru' 
+              ? 'Дополнительные звезды можно купить только при активной подписке'
+              : 'Additional stars can only be purchased with an active subscription');
+          setActiveTab(AppTab.PLANS);
+          return;
+      }
+
+      try {
+          // TODO: Интеграция с платежной системой
+          alert(language === 'ru' 
+              ? `Покупка ${stars} звезд за $${price}. Интеграция с платежной системой в разработке.`
+              : `Buying ${stars} stars for $${price}. Payment integration in development.`);
+          
+          // После успешной покупки обновляем профиль
+          await refreshProfile();
+      } catch (error: any) {
+          console.error('Ошибка при покупке звезд:', error);
+          alert(error.message || (language === 'ru' ? 'Ошибка при покупке звезд' : 'Error purchasing stars'));
+      }
   };
 
   const startNewProject = () => {
@@ -646,7 +867,20 @@ export default function App() {
   // --- Backend Integration Methods ---
 
   const handleRestore = async () => {
-    if (!croppedImage || !token) return;
+    if (!croppedImage) return;
+    
+    // Если пользователь не зарегистрирован, начинаем процесс и показываем регистрацию
+    if (!token) {
+      setIsRestoringInProgress(true);
+      setIsRestoring(true);
+      setStep(AppStep.WORKBENCH);
+      setViewMode(ViewMode.RESTORED);
+      
+      // Показываем модальное окно регистрации
+      // (будет обработано в рендере)
+      return;
+    }
+
     if (credits < 1) {
         triggerCreditError();
         return;
@@ -669,6 +903,7 @@ export default function App() {
       setCurrentProjectId(project.id);
       setRestoredImage(project.restoredImage);
       setIsRestoring(false);
+      setIsRestoringInProgress(false);
       
       // Refresh projects list
       loadProjects(token);
@@ -681,8 +916,47 @@ export default function App() {
       console.error("Restoration failed", error);
       alert("Failed to restore image. Ensure backend is running.");
       setIsRestoring(false);
+      setIsRestoringInProgress(false);
       setViewMode(ViewMode.ORIGINAL);
-      refreshProfile(); // Sync credits back in case of fail
+      if (token) {
+        refreshProfile(); // Sync credits back in case of fail
+      }
+    }
+  };
+
+  // Обработка регистрации во время генерации
+  const handleLoginDuringRestore = async (newToken: string, user: any) => {
+    setToken(newToken);
+    localStorage.setItem('token', newToken);
+    setCredits(user.credits);
+    
+    // Если была начата генерация, продолжаем её
+    if (isRestoringInProgress && croppedImage) {
+      try {
+        const res = await fetch(croppedImage);
+        const blob = await res.blob();
+        const file = new File([blob], "upload.jpg", { type: "image/jpeg" });
+
+        const { project, creditsLeft } = await API.restorePhoto(newToken, file);
+        
+        setCredits(creditsLeft);
+        setCurrentProjectId(project.id);
+        setRestoredImage(project.restoredImage);
+        setIsRestoring(false);
+        setIsRestoringInProgress(false);
+        
+        loadProjects(newToken);
+
+        // Generate Prompts
+        const prompts = await API.generatePrompts(newToken, project.id);
+        setVideoPrompts(prompts);
+      } catch (error) {
+        console.error("Restoration failed after login", error);
+        alert("Failed to restore image after login.");
+        setIsRestoring(false);
+        setIsRestoringInProgress(false);
+        refreshProfile();
+      }
     }
   };
 
@@ -1054,12 +1328,48 @@ export default function App() {
   }
 
   // If no token, show Auth Screen
-  if (!token) {
+  // Если идет генерация, показываем AuthScreen поверх процесса
+  if (!token || (isRestoringInProgress && !token)) {
       return (
         <div className="h-screen w-screen bg-zinc-950 text-white relative overflow-hidden flex flex-col">
             <div className="noise-bg" />
             <div className="noise-overlay" />
-            <AuthScreen onLogin={handleLogin} language={language} />
+            {isRestoringInProgress ? (
+                <>
+                    {/* Показываем процесс генерации на фоне */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center space-y-6 opacity-30">
+                        <div className="relative w-24 h-24">
+                            <div className="absolute inset-0 border-4 border-zinc-800 rounded-full"></div>
+                            <div className="absolute inset-0 border-4 border-white rounded-full border-t-transparent animate-spin"></div>
+                            <Wand2 size={32} className="absolute inset-0 m-auto text-white animate-pulse" />
+                        </div>
+                        <h3 className="text-xl font-bold animate-pulse">
+                            {language === 'ru' ? 'Восстановление...' : 'Restoring...'}
+                        </h3>
+                    </div>
+                    {/* Модальное окно регистрации */}
+                    <div className="absolute inset-0 flex items-center justify-center z-50 bg-black/80 backdrop-blur-sm">
+                        <div className="w-full max-w-md p-6">
+                            <div className="bg-zinc-900/95 border border-zinc-800 rounded-3xl p-8 shadow-2xl">
+                                <h2 className="text-2xl font-bold mb-4 text-center">
+                                    {language === 'ru' ? 'Зарегистрируйтесь, чтобы увидеть результат' : 'Sign up to see the result'}
+                                </h2>
+                                <p className="text-zinc-400 text-sm mb-6 text-center">
+                                    {language === 'ru' 
+                                        ? 'Процесс восстановления уже начат. Зарегистрируйтесь, чтобы увидеть результат.'
+                                        : 'Restoration process has started. Sign up to see the result.'}
+                                </p>
+                                <AuthScreen 
+                                    onLogin={handleLoginDuringRestore} 
+                                    language={language} 
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </>
+            ) : (
+                <AuthScreen onLogin={handleLogin} language={language} />
+            )}
         </div>
       )
   }
@@ -1111,7 +1421,12 @@ export default function App() {
                 {renderContent()}
             </>
         ) : activeTab === AppTab.PLANS ? (
-            <PlansView onBuy={handleBuyStars} language={language} />
+            <PlansView 
+                onBuy={handleBuySubscription} 
+                onBuyStars={handleBuyStars}
+                language={language} 
+                hasSubscription={hasSubscription}
+            />
         ) : activeTab === AppTab.GALLERY ? (
             <LikedMediaGallery 
                 items={likedMedia} 
