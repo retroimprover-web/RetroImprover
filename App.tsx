@@ -936,8 +936,15 @@ export default function App() {
       loadProjects(token);
 
       // Generate Prompts
-      const prompts = await API.generatePrompts(token, project.id);
-      setVideoPrompts(prompts);
+      try {
+        const promptsData = await API.generatePrompts(token, project.id);
+        // API возвращает массив строк для отображения
+        setVideoPrompts(Array.isArray(promptsData) ? promptsData : []);
+      } catch (promptError) {
+        console.error('Ошибка при генерации промптов:', promptError);
+        // Не блокируем процесс, просто оставляем промпты пустыми
+        setVideoPrompts([]);
+      }
 
     } catch (error) {
       console.error("Restoration failed", error);
@@ -975,8 +982,13 @@ export default function App() {
         loadProjects(newToken);
 
         // Generate Prompts
-        const prompts = await API.generatePrompts(newToken, project.id);
-        setVideoPrompts(prompts);
+        try {
+          const promptsData = await API.generatePrompts(newToken, project.id);
+          setVideoPrompts(Array.isArray(promptsData) ? promptsData : []);
+        } catch (promptError) {
+          console.error('Ошибка при генерации промптов:', promptError);
+          setVideoPrompts([]);
+        }
       } catch (error) {
         console.error("Restoration failed after login", error);
         alert("Failed to restore image after login.");
@@ -996,21 +1008,41 @@ export default function App() {
         return;
     }
 
-    setCredits(prev => prev - cost);
+    // НЕ списываем кредиты заранее - только после успешной генерации
     setIsVideoLoading(true);
     setViewMode(ViewMode.VIDEO);
 
     try {
       const selected = selectedPromptIndices.map(i => videoPrompts[i]);
+      
+      // Проверяем, что промпты не пустые
+      if (!selected || selected.length === 0) {
+        throw new Error(language === 'ru' ? 'Промпты не выбраны' : 'No prompts selected');
+      }
+      
+      console.log('🎬 Отправка запроса на генерацию видео с промптами:', selected);
+      
       const { videoUrl, creditsLeft } = await API.generateVideo(token, currentProjectId, selected);
       
+      // Только после успешной генерации обновляем состояние
       setCredits(creditsLeft);
       setGeneratedVideo(videoUrl);
       loadProjects(token);
 
     } catch (e: any) {
-      console.error(e);
-      alert(e.message || "Video generation failed.");
+      console.error('❌ Ошибка при генерации видео:', e);
+      
+      // Возвращаемся обратно к восстановленному изображению
+      setViewMode(ViewMode.RESTORED);
+      setIsVideoLoading(false);
+      
+      // Показываем понятное сообщение об ошибке
+      const errorMessage = e.message || (language === 'ru' 
+        ? 'Не удалось сгенерировать видео. Попробуйте еще раз.' 
+        : 'Failed to generate video. Please try again.');
+      alert(errorMessage);
+      
+      // Синхронизируем кредиты с сервером (на случай если они были списаны на бэкенде)
       refreshProfile();
     } finally {
       setIsVideoLoading(false);
@@ -1045,17 +1077,39 @@ export default function App() {
       
       if (!(item.videoUrl || item.video) && (item.restoredUrl || item.restoredImage)) {
            // If loaded from gallery and has no video, try to fetch prompts or generate
-           // For MVP, we might need to re-trigger prompt gen or store prompts in DB
-           // We'll leave empty or simple array for now
            if (item.prompts) {
                try {
                    const prompts = typeof item.prompts === 'string' ? JSON.parse(item.prompts) : item.prompts;
-                   setVideoPrompts(Array.isArray(prompts) ? prompts : []);
+                   
+                   // Обрабатываем билингвальные промпты (объекты с en/ru) или простые строки
+                   if (Array.isArray(prompts)) {
+                     if (prompts.length > 0 && typeof prompts[0] === 'object' && 'en' in prompts[0] && 'ru' in prompts[0]) {
+                       // Это билингвальные промпты - извлекаем нужный язык
+                       const userLang = language === 'ru' ? 'ru' : 'en';
+                       setVideoPrompts(prompts.map((p: any) => p[userLang] || p.en || ''));
+                     } else {
+                       // Это простые строки
+                       setVideoPrompts(prompts);
+                     }
+                   } else {
+                     setVideoPrompts([]);
+                   }
                } catch (e) {
+                   console.error('Ошибка при парсинге промптов:', e);
                    setVideoPrompts([]);
                }
            } else {
-               setVideoPrompts([]);
+               // Если промптов нет, пытаемся загрузить их с сервера
+               if (token && item.id) {
+                 API.generatePrompts(token, item.id)
+                   .then(prompts => setVideoPrompts(Array.isArray(prompts) ? prompts : []))
+                   .catch(e => {
+                     console.error('Ошибка при загрузке промптов:', e);
+                     setVideoPrompts([]);
+                   });
+               } else {
+                 setVideoPrompts([]);
+               }
            }
       }
   };
@@ -1323,14 +1377,48 @@ export default function App() {
                  )
              }
              
+             // Если видео не загружено, показываем сообщение и кнопку возврата
+             if (!generatedVideo) {
+                 return (
+                    <div className="flex-1 flex flex-col items-center justify-center space-y-6 p-6">
+                        <div className="text-center">
+                            <Video size={48} className="mx-auto text-zinc-500 mb-4" />
+                            <h3 className="text-xl font-bold mb-2">
+                                {language === 'ru' ? 'Видео не готово' : 'Video not ready'}
+                            </h3>
+                            <p className="text-zinc-500 text-sm mb-6">
+                                {language === 'ru' 
+                                    ? 'Видео еще не было сгенерировано или произошла ошибка.'
+                                    : 'Video has not been generated yet or an error occurred.'}
+                            </p>
+                            <Button variant="secondary" onClick={() => setViewMode(ViewMode.RESTORED)}>
+                                <ArrowLeft size={16}/> {t('backToEditor', language)}
+                            </Button>
+                        </div>
+                    </div>
+                 )
+             }
+             
              return (
                 <div className="flex-1 flex flex-col h-full animate-in fade-in duration-500">
                      <div className="flex-1 relative min-h-0 bg-black">
-                         {generatedVideo && <video src={generatedVideo} autoPlay loop muted playsInline className="w-full h-full object-contain" />}
+                         <video 
+                             src={generatedVideo} 
+                             autoPlay 
+                             loop 
+                             muted 
+                             playsInline 
+                             className="w-full h-full object-contain"
+                             onError={(e) => {
+                                 console.error('Ошибка загрузки видео:', e);
+                                 // При ошибке загрузки видео возвращаемся к восстановленному изображению
+                                 setViewMode(ViewMode.RESTORED);
+                             }}
+                         />
                          
                          <div className="absolute top-20 right-4 flex flex-col gap-3 z-50">
                             <button 
-                                onClick={() => downloadFile(generatedVideo!, `video_${Date.now()}.mp4`, 'video', token || undefined)}
+                                onClick={() => downloadFile(generatedVideo, `video_${Date.now()}.mp4`, 'video', token || undefined)}
                                 className="p-3 bg-black/60 backdrop-blur-md rounded-full text-white hover:bg-black/80 border border-white/10 shadow-xl transition-transform active:scale-95"
                             >
                                 <Download size={20} />
