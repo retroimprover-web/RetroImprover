@@ -31,7 +31,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       data: {
         email,
         passwordHash,
-        credits: 5,
+        credits: 3, // Даем 3 бесплатные звезды при регистрации
       },
     });
 

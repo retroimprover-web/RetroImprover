@@ -794,6 +794,7 @@ export default function App() {
       setTimeout(() => setHighlightCredits(false), 800);
       // Переход на экран пополнения при нехватке звезд
       setTimeout(() => {
+          navigate('/plans');
           setActiveTab(AppTab.PLANS);
       }, 1000);
   };
@@ -938,6 +939,7 @@ export default function App() {
   const handleGenerateVideo = async () => {
     if (!currentProjectId || !token) {
       alert(language === 'ru' ? 'Необходимо войти в систему' : 'You need to sign in');
+      navigate('/auth');
       return;
     }
     
@@ -951,8 +953,9 @@ export default function App() {
       return;
     }
     
-    const cost = 3; // Fixed cost for simplicity in MVP, or server logic
-    if (credits < cost) {
+    const cost = 3; // Стоимость генерации видео
+    // Проверяем: если не хватает звезд ИЛИ нет подписки - показываем окно покупки подписки
+    if (credits < cost || !hasSubscription) {
         triggerCreditError();
         return;
     }
