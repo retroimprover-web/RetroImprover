@@ -485,41 +485,119 @@ const ProfileView = ({ email, credits, language, onLanguageChange, onClose }: {
     </div>
 );
 
-const PlansView = ({ onBuy, language }: { onBuy: (planId: string, stars: number) => void, language: Language }) => (
-    <div className="w-full h-full flex flex-col items-center justify-center p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold mb-2">{t('getMoreStars', language)}</h2>
-            <p className="text-zinc-400">{t('generateHighQuality', language)}</p>
-        </div>
-        
-        <div className="w-full max-w-sm space-y-3">
-            {[
-                { id: 'starter', price: 'Free', stars: 3, label: t('starter', language), desc: t('tryItOut', language) },
-                { id: 'creator', price: '$9.99', stars: 20, label: t('creator', language), desc: t('bestForHobbyists', language) },
-                { id: 'pro', price: '$25.99', stars: 50, label: t('pro', language), desc: t('heavyUsage', language) },
-            ].map((plan) => (
-            <div key={plan.id} className="group relative p-4 rounded-2xl border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-900 hover:border-zinc-600 transition-all flex justify-between items-center overflow-hidden cursor-pointer"
-                 onClick={() => onBuy(plan.id, plan.stars)}>
-                <div className="relative z-10">
-                    <div className="flex items-center gap-2 mb-1">
-                         <span className="font-bold text-white text-lg">{plan.label}</span>
-                         {plan.id === 'mid' && <span className="text-[10px] bg-purple-500 text-white px-2 py-0.5 rounded-full font-bold">{t('popular', language)}</span>}
-                    </div>
-                    <div className="flex items-center gap-1 text-yellow-400 font-bold">
-                        <Sparkles size={14} fill="currentColor"/> {plan.stars} {t('stars', language)}
+const PlansView = ({ onBuy, onBuyStars, language, hasSubscription }: { 
+    onBuy: (planId: string, stars: number, price: number) => void, 
+    onBuyStars: (stars: number, price: number) => void,
+    language: Language,
+    hasSubscription: boolean
+}) => {
+    const subscriptionPlans = [
+        { id: 'week', stars: 30, price: 5.99, label: language === 'ru' ? 'Неделя (пробная)' : 'Week trial', desc: language === 'ru' ? 'Попробовать' : 'Try it out', period: language === 'ru' ? 'неделя' : 'week' },
+        { id: 'month', stars: 90, price: 13.99, label: language === 'ru' ? 'Месяц' : 'Month', desc: language === 'ru' ? 'Для любителей' : 'Best for hobbyists', period: language === 'ru' ? 'месяц' : 'month', popular: true },
+        { id: 'yearly', stars: 750, price: 83.99, label: language === 'ru' ? 'Год' : 'Yearly', desc: language === 'ru' ? '$6.99/месяц' : '$6.99/month', period: language === 'ru' ? 'год' : 'year' },
+    ];
+
+    const additionalStars = [
+        { stars: 20, price: 3.99 },
+        { stars: 50, price: 8.99, discount: '10%' },
+        { stars: 100, price: 14.99, discount: '25%' },
+    ];
+
+    return (
+        <div className="w-full h-full overflow-y-auto p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="max-w-4xl mx-auto">
+                <div className="text-center mb-8">
+                    <h2 className="text-3xl font-bold mb-2">{t('getMoreStars', language)}</h2>
+                    <p className="text-zinc-400">{t('generateHighQuality', language)}</p>
+                </div>
+
+                {/* Subscription Plans */}
+                <div className="mb-12">
+                    <h3 className="text-2xl font-bold mb-4 text-center">
+                        {language === 'ru' ? 'Подписки' : 'Subscriptions'}
+                    </h3>
+                    <p className="text-zinc-400 text-sm text-center mb-6">
+                        {language === 'ru' 
+                            ? 'Подписки автоматически обновляются. Звезды подписки не переносятся на следующий период.'
+                            : 'Subscriptions auto-renew. Subscription stars do not carry over to the next period.'}
+                    </p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {subscriptionPlans.map((plan) => (
+                            <div 
+                                key={plan.id}
+                                className={`group relative p-6 rounded-2xl border ${plan.popular ? 'border-purple-500 bg-purple-500/10' : 'border-zinc-800 bg-zinc-900/50'} hover:bg-zinc-900 hover:border-zinc-600 transition-all cursor-pointer overflow-hidden`}
+                                onClick={() => onBuy(plan.id, plan.stars, plan.price)}
+                            >
+                                {plan.popular && (
+                                    <div className="absolute top-4 right-4">
+                                        <span className="text-[10px] bg-purple-500 text-white px-2 py-1 rounded-full font-bold">
+                                            {t('popular', language)}
+                                        </span>
+                                    </div>
+                                )}
+                                
+                                <div className="mb-4">
+                                    <div className="text-xl font-bold text-white mb-1">{plan.label}</div>
+                                    <div className="text-3xl font-bold text-white mb-2">${plan.price}</div>
+                                    <div className="text-xs text-zinc-400 mb-4">{plan.desc}</div>
+                                    <div className="flex items-center gap-2 text-yellow-400 font-bold">
+                                        <Sparkles size={16} fill="currentColor"/> {plan.stars} {t('stars', language)}
+                                    </div>
+                                </div>
+                                
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                            </div>
+                        ))}
                     </div>
                 </div>
-                <div className="relative z-10 flex flex-col items-end">
-                    <div className="text-xl font-bold text-white">{plan.price}</div>
-                    <div className="text-xs text-zinc-500">{plan.desc}</div>
-                </div>
-                {/* Hover Glow */}
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+
+                {/* Additional Stars - показываем только если есть подписка */}
+                {hasSubscription && (
+                    <div>
+                        <div className="text-center mb-6">
+                            <h3 className="text-2xl font-bold mb-2">
+                                {language === 'ru' ? 'Дополнительные звезды' : 'Additional Stars'}
+                            </h3>
+                            <p className="text-zinc-400 text-sm">
+                                {language === 'ru' 
+                                    ? 'Дополнительные звезды не сгорают и остаются навсегда'
+                                    : 'Additional stars never expire and stay forever'}
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {additionalStars.map((item) => (
+                                <div 
+                                    key={item.stars}
+                                    className="group relative p-6 rounded-2xl border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-900 hover:border-zinc-600 transition-all cursor-pointer overflow-hidden"
+                                    onClick={() => onBuyStars(item.stars, item.price)}
+                                >
+                                    {item.discount && (
+                                        <div className="absolute top-4 right-4">
+                                            <span className="text-[10px] bg-green-500 text-white px-2 py-1 rounded-full font-bold">
+                                                -{item.discount}
+                                            </span>
+                                        </div>
+                                    )}
+                                    
+                                    <div className="mb-4">
+                                        <div className="flex items-center gap-2 text-yellow-400 font-bold text-2xl mb-2">
+                                            <Sparkles size={20} fill="currentColor"/> {item.stars}
+                                        </div>
+                                        <div className="text-xl font-bold text-white">${item.price}</div>
+                                    </div>
+                                    
+                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
-            ))}
         </div>
-    </div>
-)
+    );
+}
 
 // --- Main Application ---
 
@@ -548,6 +626,7 @@ export default function App() {
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string>('');
   const [likedMedia, setLikedMedia] = useState<any[]>([]);
+  const [hasSubscription, setHasSubscription] = useState(false);
 
   const [originalImage, setOriginalImage] = useState<string | null>(null);
   const [croppedImage, setCroppedImage] = useState<string | null>(null);
@@ -577,6 +656,7 @@ export default function App() {
       setToken(newToken);
       localStorage.setItem('token', newToken);
       setCredits(user.credits);
+      setHasSubscription(!!user.subscriptionType);
       loadProjects(newToken);
       
       // Если была начата генерация, продолжаем её
@@ -650,6 +730,7 @@ export default function App() {
         const p = await API.getProfile(token);
         setCredits(p.credits);
         setUserEmail(p.email);
+        setHasSubscription(!!p.subscriptionType);
         // Загружаем язык с сервера, если есть
         if (p.language) {
           setLanguage(p.language);
@@ -712,10 +793,49 @@ export default function App() {
       }, 1000);
   };
 
-  const handleBuyStars = (planId: string, stars: number) => {
-      // Для MVP: можно добавить звезды вручную через базу данных
-      alert(`Для добавления ${stars} звезд обратитесь к администратору или используйте базу данных.`);
-      setActiveTab(AppTab.HOME); 
+  const handleBuySubscription = async (planId: string, stars: number, price: number) => {
+      if (!token) {
+          alert(language === 'ru' ? 'Необходимо войти в систему' : 'You need to sign in');
+          navigate('/auth');
+          return;
+      }
+
+      try {
+          // Здесь должна быть интеграция с платежной системой (Paddle)
+          alert(language === 'ru' 
+              ? `Покупка подписки ${planId} за $${price} (${stars} звезд). Интеграция с платежной системой в разработке.`
+              : `Purchase subscription ${planId} for $${price} (${stars} stars). Payment integration in development.`);
+          // После успешной покупки обновляем профиль
+          await refreshProfile();
+      } catch (error: any) {
+          alert(error.message || (language === 'ru' ? 'Ошибка при покупке подписки' : 'Error purchasing subscription'));
+      }
+  };
+
+  const handleBuyStars = async (stars: number, price: number) => {
+      if (!token) {
+          alert(language === 'ru' ? 'Необходимо войти в систему' : 'You need to sign in');
+          navigate('/auth');
+          return;
+      }
+
+      if (!hasSubscription) {
+          alert(language === 'ru' 
+              ? 'Дополнительные звезды можно покупать только при активной подписке'
+              : 'Additional stars can only be purchased with an active subscription');
+          return;
+      }
+
+      try {
+          // Здесь должна быть интеграция с платежной системой (Paddle)
+          alert(language === 'ru' 
+              ? `Покупка ${stars} звезд за $${price}. Интеграция с платежной системой в разработке.`
+              : `Purchase ${stars} stars for $${price}. Payment integration in development.`);
+          // После успешной покупки обновляем профиль
+          await refreshProfile();
+      } catch (error: any) {
+          alert(error.message || (language === 'ru' ? 'Ошибка при покупке звезд' : 'Error purchasing stars'));
+      }
   };
 
   const startNewProject = () => {
@@ -1270,7 +1390,12 @@ export default function App() {
                   </>
                 } />
                 <Route path="/plans" element={
-                  <PlansView onBuy={handleBuyStars} language={language} />
+                  <PlansView 
+                    onBuy={handleBuySubscription} 
+                    onBuyStars={handleBuyStars}
+                    language={language} 
+                    hasSubscription={hasSubscription}
+                  />
                 } />
                 <Route path="/auth" element={
                   <div className="w-full h-full flex items-center justify-center p-6">
@@ -1426,7 +1551,12 @@ export default function App() {
             />
           } />
           <Route path="/plans" element={
-            <PlansView onBuy={handleBuyStars} language={language} />
+            <PlansView 
+              onBuy={handleBuySubscription} 
+              onBuyStars={handleBuyStars}
+              language={language} 
+              hasSubscription={hasSubscription}
+            />
           } />
           <Route path="/profile" element={
             <ProfileView 
