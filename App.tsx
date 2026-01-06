@@ -91,7 +91,7 @@ const Header = ({ onBack, showBack, onMenu, credits, onAddCredits, highlightCred
 );
 
 const AuthScreen = ({ onLogin, language }: { onLogin: (token: string, user: any) => void, language: Language }) => {
-    const [isRegister, setIsRegister] = useState(false);
+    const [isRegister, setIsRegister] = useState(true); // По умолчанию показываем регистрацию
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
@@ -695,6 +695,10 @@ export default function App() {
               console.error('Ошибка при генерации промптов:', promptError);
               setVideoPrompts([]);
           }
+          
+          // Перекидываем на главную страницу, чтобы показать результат
+          navigate('/');
+          setActiveTab(AppTab.HOME);
       } catch (error) {
           console.error("Restoration failed after login", error);
           const errorMsg = language === 'ru' 
@@ -705,6 +709,7 @@ export default function App() {
           setIsRestoringInProgress(false);
           setPendingRestoreImage(null);
           refreshProfile();
+          navigate('/');
       }
   };
 
