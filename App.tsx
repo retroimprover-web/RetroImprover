@@ -1,4 +1,4 @@
-    import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import Cropper from 'react-easy-crop';
 import { AppStep, RestoredImage, SubscriptionPlan, ViewMode, AppTab } from './types';
@@ -284,9 +284,9 @@ const Sidebar = ({ isOpen, onClose, activeTab, onSelectTab, onNewProject, onLogo
                                     <option value="ru">{t('russian', language)}</option>
                                 </select>
                             </div>
-                            <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/10 rounded-xl transition-all">
+                    <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/10 rounded-xl transition-all">
                                 <LogIn size={20} className="rotate-180"/> {t('signOut', language)}
-                            </button>
+                    </button>
                         </>
                     ) : (
                         <>
@@ -506,11 +506,11 @@ const PlansView = ({ onBuy, onBuyStars, language, hasSubscription }: {
     return (
         <div className="w-full h-full overflow-y-auto p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="max-w-4xl mx-auto">
-                <div className="text-center mb-8">
+        <div className="text-center mb-8">
                     <h2 className="text-3xl font-bold mb-2">{t('getMoreStars', language)}</h2>
                     <p className="text-zinc-400">{t('generateHighQuality', language)}</p>
-                </div>
-
+        </div>
+        
                 {/* Subscription Plans */}
                 <div className="mb-12">
                     <h3 className="text-2xl font-bold mb-4 text-center">
@@ -534,7 +534,7 @@ const PlansView = ({ onBuy, onBuyStars, language, hasSubscription }: {
                                         <span className="text-[10px] bg-purple-500 text-white px-2 py-1 rounded-full font-bold">
                                             {t('popular', language)}
                                         </span>
-                                    </div>
+                    </div>
                                 )}
                                 
                                 <div className="mb-4">
@@ -543,11 +543,11 @@ const PlansView = ({ onBuy, onBuyStars, language, hasSubscription }: {
                                     <div className="text-xs text-zinc-400 mb-4">{plan.desc}</div>
                                     <div className="flex items-center gap-2 text-yellow-400 font-bold">
                                         <Sparkles size={16} fill="currentColor"/> {plan.stars} {t('stars', language)}
-                                    </div>
-                                </div>
+                    </div>
+                </div>
                                 
                                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                            </div>
+                </div>
                         ))}
                     </div>
                 </div>
@@ -588,11 +588,11 @@ const PlansView = ({ onBuy, onBuyStars, language, hasSubscription }: {
                                         <div className="text-xl font-bold text-white">${item.price}</div>
                                     </div>
                                     
-                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+            </div>
+            ))}
+        </div>
+    </div>
                 )}
             </div>
         </div>
@@ -936,7 +936,20 @@ export default function App() {
   };
 
   const handleGenerateVideo = async () => {
-    if (!currentProjectId || !token || selectedPromptIndices.length === 0) return;
+    if (!currentProjectId || !token) {
+      alert(language === 'ru' ? 'Необходимо войти в систему' : 'You need to sign in');
+      return;
+    }
+    
+    if (selectedPromptIndices.length === 0) {
+      alert(language === 'ru' ? 'Выберите хотя бы один промпт' : 'Please select at least one prompt');
+      return;
+    }
+    
+    if (videoPrompts.length === 0) {
+      alert(language === 'ru' ? 'Промпты еще не загружены' : 'Prompts are not loaded yet');
+      return;
+    }
     
     const cost = 3; // Fixed cost for simplicity in MVP, or server logic
     if (credits < cost) {
@@ -944,22 +957,45 @@ export default function App() {
         return;
     }
 
-    setCredits(prev => prev - cost);
     setIsVideoLoading(true);
     setViewMode(ViewMode.VIDEO);
 
     try {
-      const selected = selectedPromptIndices.map(i => videoPrompts[i]);
+      // Проверяем, что промпты существуют и не пустые
+      const selected = selectedPromptIndices
+        .map(i => videoPrompts[i])
+        .filter(p => p && p.trim().length > 0);
+      
+      if (selected.length === 0) {
+        throw new Error(language === 'ru' ? 'Выбранные промпты пустые' : 'Selected prompts are empty');
+      }
+      
+      console.log('🎬 Отправка запроса на генерацию видео с промптами:', selected);
+      
+      // НЕ списываем кредиты заранее - только после успешной генерации
       const { videoUrl, creditsLeft } = await API.generateVideo(token, currentProjectId, selected);
       
+      // Только после успешной генерации списываем кредиты
       setCredits(creditsLeft);
       setGeneratedVideo(videoUrl);
       loadProjects(token);
 
     } catch (e: any) {
-      console.error(e);
-      alert(e.message || "Video generation failed.");
-      refreshProfile();
+      console.error('❌ Ошибка генерации видео:', e);
+      
+      // При ошибке возвращаемся к восстановленному изображению
+      setViewMode(ViewMode.RESTORED);
+      setIsVideoLoading(false);
+      
+      // Синхронизируем кредиты с сервером
+      if (token) {
+        await refreshProfile();
+      }
+      
+      const errorMsg = e.message || (language === 'ru' 
+        ? 'Не удалось сгенерировать видео. Попробуйте еще раз.' 
+        : 'Failed to generate video. Please try again.');
+      alert(errorMsg);
     } finally {
       setIsVideoLoading(false);
     }
@@ -1271,10 +1307,46 @@ export default function App() {
                  )
              }
              
+             // Если видео не загружено, показываем сообщение и кнопку возврата
+             if (!generatedVideo) {
+                 return (
+                    <div className="flex-1 flex flex-col items-center justify-center space-y-6 p-6">
+                        <div className="text-center">
+                            <Video size={48} className="mx-auto text-zinc-500 mb-4" />
+                            <h3 className="text-xl font-bold mb-2">
+                                {language === 'ru' ? 'Видео не готово' : 'Video not ready'}
+                            </h3>
+                            <p className="text-zinc-400 text-sm mb-6">
+                                {language === 'ru' 
+                                    ? 'Видео еще не сгенерировано или произошла ошибка'
+                                    : 'Video has not been generated yet or an error occurred'}
+                            </p>
+                            <Button variant="secondary" onClick={() => setViewMode(ViewMode.RESTORED)}>
+                                <ArrowLeft size={16}/> {t('backToEditor', language)}
+                            </Button>
+                        </div>
+                    </div>
+                 )
+             }
+             
              return (
                 <div className="flex-1 flex flex-col h-full animate-in fade-in duration-500">
                      <div className="flex-1 relative min-h-0 bg-black">
-                         {generatedVideo && <video src={generatedVideo} autoPlay loop muted playsInline className="w-full h-full object-contain" />}
+                         <video 
+                           src={generatedVideo} 
+                           autoPlay 
+                           loop 
+                           muted 
+                           playsInline 
+                           className="w-full h-full object-contain"
+                           onError={(e) => {
+                               console.error('Ошибка загрузки видео:', e);
+                               setViewMode(ViewMode.RESTORED);
+                               alert(language === 'ru' 
+                                   ? 'Ошибка загрузки видео. Возвращаемся к редактору.'
+                                   : 'Video loading error. Returning to editor.');
+                           }}
+                         />
                          
                          <div className="absolute top-20 right-4 flex flex-col gap-3 z-50">
                             <button 
@@ -1526,14 +1598,14 @@ export default function App() {
           } />
           <Route path="/" element={
             <>
-              {renderNavWidgets()}
-              {renderContent()}
+                {renderNavWidgets()}
+                {renderContent()}
             </>
           } />
           <Route path="/projects" element={
             <ProjectsGallery 
-              items={projects} 
-              onLoadItem={loadFromGalleryOrProject} 
+                items={projects} 
+                onLoadItem={loadFromGalleryOrProject} 
               title={t('myProjects', language)} 
               emptyMsg={t('noRestorations', language)}
               language={language}
