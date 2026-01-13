@@ -954,8 +954,8 @@ export default function App() {
     }
     
     const cost = 3; // Стоимость генерации видео
-    // Проверяем: если не хватает звезд ИЛИ нет подписки - показываем окно покупки подписки
-    if (credits < cost || !hasSubscription) {
+    // Проверяем: если не хватает звезд - показываем окно покупки подписки
+    if (credits < cost) {
         triggerCreditError();
         return;
     }
